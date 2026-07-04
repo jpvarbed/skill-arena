@@ -81,7 +81,11 @@ def call_google(prompt, model):
 
 BACKENDS = {"codex": call_codex, "claude-cli": call_claude_cli, "anthropic": call_anthropic,
             "openrouter": call_openrouter, "fireworks": call_fireworks,
-            "openai": call_openai, "google": call_google}
+            "openai": call_openai, "google": call_google,
+            # model aliases: same provider fn, distinct leaderboard column; the model
+            # id comes from each skill config's "models" map keyed by these names.
+            "opus": call_anthropic, "sonnet": call_anthropic, "haiku": call_anthropic,
+            "gemini-pro": call_google, "gemini-flash": call_google}
 
 
 _BACKEND_ENV = {
@@ -90,6 +94,8 @@ _BACKEND_ENV = {
     "fireworks": "FIREWORKS_API_KEY",
     "openai": "OPENAI_API_KEY",
     "google": "GOOGLE_API_KEY",
+    "opus": "ANTHROPIC_API_KEY", "sonnet": "ANTHROPIC_API_KEY", "haiku": "ANTHROPIC_API_KEY",
+    "gemini-pro": "GOOGLE_API_KEY", "gemini-flash": "GOOGLE_API_KEY",
 }
 _BWS_LOADED = False
 def is_error_sentinel(text):

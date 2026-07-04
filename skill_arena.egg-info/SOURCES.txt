@@ -1,0 +1,14 @@
+README.md
+arena.py
+backends.py
+pyproject.toml
+report.py
+scorers.py
+skill_arena.egg-info/PKG-INFO
+skill_arena.egg-info/SOURCES.txt
+skill_arena.egg-info/dependency_links.txt
+skill_arena.egg-info/entry_points.txt
+skill_arena.egg-info/top_level.txt
+tests/test_backends.py
+tests/test_loader.py
+tests/test_scorers.py

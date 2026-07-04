@@ -11,8 +11,11 @@
     "type": "deterministic"
   },
   "models": {
-    "anthropic": "claude-sonnet-4-6",
+    "opus": "claude-opus-4-8",
+    "sonnet": "claude-sonnet-5",
+    "haiku": "claude-haiku-4-5-20251001",
     "openai": "gpt-5.5",
-    "google": "gemini-2.5-pro"
+    "gemini-pro": "gemini-2.5-pro",
+    "gemini-flash": "gemini-2.5-flash"
   }
 }
