@@ -68,10 +68,12 @@ def call_openai(prompt, model):
 
 def call_google(prompt, model):
     key = os.environ["GOOGLE_API_KEY"]
+    # gemini 2.5 pro is a thinking model: a 200-token cap is spent on reasoning and
+    # the visible answer comes back empty. Give it room.
     d = _http(f"https://generativelanguage.googleapis.com/v1beta/models/{model or 'gemini-2.5-pro'}:generateContent",
               {"x-goog-api-key": key},
               {"contents": [{"parts": [{"text": prompt}]}],
-               "generationConfig": {"temperature": 0, "maxOutputTokens": 200}})
+               "generationConfig": {"temperature": 0, "maxOutputTokens": 2000}})
     candidates = d.get("candidates", [])
     parts = candidates[0].get("content", {}).get("parts", []) if candidates else []
     return "".join(part.get("text", "") for part in parts) or json.dumps(d)
