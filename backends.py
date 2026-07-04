@@ -55,8 +55,15 @@ def call_fireworks(prompt, model):
 
 
 def call_openai(prompt, model):
-    return _openai_style("https://api.openai.com/v1/chat/completions",
-                         os.environ["OPENAI_API_KEY"], model or "gpt-5.5", prompt)
+    # gpt-5.x are reasoning models: they use max_completion_tokens (not max_tokens),
+    # reject a custom temperature, and spend completion budget on hidden reasoning —
+    # so the cap must be generous or the visible answer comes back empty.
+    key = os.environ["OPENAI_API_KEY"]
+    d = _http("https://api.openai.com/v1/chat/completions",
+              {"authorization": f"Bearer {key}"},
+              {"model": model or "gpt-5.5", "max_completion_tokens": 2000,
+               "messages": [{"role": "user", "content": prompt}]})
+    return d["choices"][0]["message"]["content"] or json.dumps(d)
 
 
 def call_google(prompt, model):
