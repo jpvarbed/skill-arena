@@ -118,7 +118,9 @@ def _load_bws_secrets():
     if _BWS_LOADED:
         return
     env_path = os.path.expanduser("~/dev/.env.local")
-    command = f"source {shlex.quote(env_path)} >/dev/null 2>&1; bws secret list -o json"
+    # set -a so BWS_ACCESS_TOKEN is EXPORTED to bws (a child process), not just a
+    # shell var — plain `source` leaves it unexported and bws sees no token.
+    command = f"set -a; source {shlex.quote(env_path)} >/dev/null 2>&1; set +a; bws secret list -o json"
     out = subprocess.run(["zsh", "-lc", command], capture_output=True, text=True, timeout=30)
     if out.returncode != 0:
         raise RuntimeError("bws secret list failed")
