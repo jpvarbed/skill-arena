@@ -1,0 +1,18 @@
+{
+  "name": "json-output",
+  "cases_path": "cases.jsonl",
+  "prompt_variants": [
+    {
+      "name": "strict-json",
+      "template": "Return only the JSON object requested. No prose, no markdown.\n\nREQUEST:\n{input}\n"
+    }
+  ],
+  "scorer": {
+    "type": "deterministic"
+  },
+  "models": {
+    "anthropic": "claude-sonnet-4-6",
+    "openai": "gpt-5.5",
+    "google": "gemini-2.5-pro"
+  }
+}

@@ -1,0 +1,2 @@
+{"id":"json-1","input":"Return {\"ok\": true, \"label\": \"json-output\"}.","expect":{"json":{"ok":true,"label":"json-output"}}}
+{"id":"json-2","input":"Return {\"ok\": true, \"items\": [\"alpha\", \"beta\"]}.","expect":{"json":{"ok":true,"items":["alpha","beta"]}}}
