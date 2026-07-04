@@ -84,3 +84,14 @@ def test_error_sentinel_never_scores_as_pass():
 
     assert result["pass"] is False
     assert "backend error" in result["detail"]
+
+
+def test_valid_answer_with_trigger_word_not_flagged_error():
+    # regression: a real answer that quotes analyzed content containing "authentication"
+    # must score normally, not get classified as a backend error.
+    from scorers import score_expect_set
+    case = {"id": "x", "kind": "dirty", "expect": ["throat-clear"]}
+    out = 'The draft mentions authentication and quota. ["throat-clear"]'
+    r = score_expect_set(case, out)
+    assert r["pass"] is True
+    assert not r.get("error")

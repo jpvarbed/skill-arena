@@ -83,21 +83,6 @@ _BACKEND_ENV = {
     "google": "GOOGLE_API_KEY",
 }
 _BWS_LOADED = False
-_ERROR_PATTERNS = (
-    "hit your usage limit",
-    "usage limit",
-    "quota",
-    "insufficient_quota",
-    "rate limit",
-    "credit balance",
-    "payment required",
-    "authentication",
-    "unauthorized",
-    "forbidden",
-    "error: failed",
-)
-
-
 def is_error_sentinel(text):
     return isinstance(text, str) and text.startswith(ERROR_SENTINEL_PREFIX)
 
@@ -108,8 +93,12 @@ def call_backend(name, prompt, model=None):
     try:
         _ensure_backend_auth(name)
         text = BACKENDS[name](prompt, model)
-        if _looks_like_backend_error(text):
-            return _error_sentinel(name, RuntimeError(_compact(text)))
+        # Do NOT content-scan for error words here: backends like codex echo the
+        # prompt + answer, and analyzed content legitimately contains words like
+        # "authentication"/"quota"/"error". Real failures either raise (HTTP 4xx,
+        # missing key) and are caught below, or return a banner with no parseable
+        # answer — the scorer flags that as error when parse_array() yields None.
+        # Adapters guard their own unambiguous quota banners (e.g. call_codex).
         return text
     except Exception as exc:
         return _error_sentinel(name, exc)
@@ -141,13 +130,6 @@ def _load_bws_secrets():
         if key in wanted and value and not os.environ.get(key):
             os.environ[key] = value
     _BWS_LOADED = True
-
-
-def _looks_like_backend_error(text):
-    if not isinstance(text, str):
-        return True
-    lowered = text.lower()
-    return any(pattern in lowered for pattern in _ERROR_PATTERNS)
 
 
 def _error_sentinel(name, exc):
