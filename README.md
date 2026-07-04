@@ -1,34 +1,31 @@
 # skill-arena
 
-Local matrix runner for evaluating skills across model backends and prompt variants.
+Which model runs your skill best? Point this at a skill and its graded cases, and it runs every
+model over them and prints one honest number per cell. A failed call scores as an error, never a
+fake pass.
+
+**Live example:** https://skill-arena.jasonv.app runs six models over two skills. On
+AI-writing-tell detection, GPT-5.5 and Gemini 2.5 Pro tie at 94%, and Haiku 4.5 is the floor at 69%.
+
+Cases live in git, so the number is reproducible and the diff is reviewable. Bring your own skill
+repo and get the same table.
 
 ## Run
 
-Dry-run the full local matrix without network calls:
-
 ```sh
-UV_CACHE_DIR=/private/tmp/skill-arena-uv-cache uv run arena run --all --backends codex,anthropic,openai --dry-run
+# no network — stubs every backend, proves the wiring
+uv run arena run --all --backends anthropic,openai,google --dry-run
+
+# the real matrix
+uv run arena run --all --backends anthropic,openai,google
 ```
 
-Run the real matrix:
-
-```sh
-uv run arena run --all --backends codex,anthropic,openai
-```
-
-Outputs:
-
-- `out/results.json`
-- `out/leaderboard.html`
-- a comparison table on stdout
-
-Generate the report again from an existing result file:
+Each run writes `out/results.json`, `out/leaderboard.html`, and a table to stdout. Regenerate the
+page from a saved run:
 
 ```sh
 uv run arena report --results out/results.json --html out/leaderboard.html
 ```
-
-Deploy/share is intentionally out of scope here. The orchestrator should publish `out/leaderboard.html`.
 
 ## Add a Skill
 
