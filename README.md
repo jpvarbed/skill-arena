@@ -83,3 +83,15 @@ Secret values are never printed.
 
 Backend exceptions, quota failures, auth failures, and recognizable CLI errors return an `ERROR:`
 sentinel. Scorers treat that sentinel as a failing error result, never as a clean answer.
+
+## Backend gotchas (learned running the real matrix)
+
+- **codex CLI needs a TTY.** As a subprocess it works in the foreground but hangs (app-server
+  init) when the arena is run detached/backgrounded. Prefer the API backends for unattended runs;
+  use codex only in a foreground/interactive shell.
+- **Reasoning models eat the token cap.** gpt-5.x and gemini-2.5-pro spend the output budget on
+  hidden reasoning; a small cap returns an empty answer. gpt-5.x also use `max_completion_tokens`
+  (not `max_tokens`) and reject a custom temperature. Caps are set generous (2000) for these.
+- **Model judges are nondeterministic.** highsignal detection varies run-to-run (~14–15/16 per
+  backend); the arena's scorer is identical to highsignal/tests/eval.py, so a differing pass count
+  is model variance, not a scoring divergence.
