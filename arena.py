@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parent
 SKILLS_DIR = ROOT / "skills"
 OUT_DIR = ROOT / "out"
 DEFAULT_BACKENDS = ["codex"]
+SKILL_ALIASES = {"ai-writing-tell": "highsignal"}
 
 TELLS = {
     "throat-clear": "soft setup that delays the point (\"One thing that helps:\")",
@@ -54,7 +55,8 @@ class Skill:
 
 
 def load_skill(name):
-    directory = SKILLS_DIR / name
+    actual_name = SKILL_ALIASES.get(name, name)
+    directory = SKILLS_DIR / actual_name
     config_path = directory / "config.json"
     if not config_path.exists():
         raise FileNotFoundError(f"skill config not found: {config_path}")
@@ -217,6 +219,20 @@ def build_parser():
     report_parser = sub.add_parser("report")
     report_parser.add_argument("--results", default=str(OUT_DIR / "results.json"))
     report_parser.add_argument("--html", default=str(OUT_DIR / "leaderboard.html"))
+
+    forge_parser = sub.add_parser("forge")
+    forge_parser.add_argument("--skill")
+    forge_parser.add_argument("--backends")
+    forge_parser.add_argument("--full", action="store_true")
+    forge_parser.add_argument("--replay", action="store_true")
+    forge_parser.add_argument("--target", default="haiku")
+    forge_parser.add_argument("--attempts", type=int, default=2)
+    forge_parser.add_argument(
+        "--generator", default="codex", choices=["codex", "opus", "openai", "google"],
+        help="Model that GENERATES variants (the leverage step). Default codex = GPT-5.5 on subscription.",
+    )
+    forge_parser.add_argument("--results", default=str(OUT_DIR / "forge-results.json"))
+    forge_parser.add_argument("--out-dir", default=str(OUT_DIR))
     return parser
 
 
@@ -231,6 +247,10 @@ def main(argv=None):
         from report import main as report_main
 
         return report_main(["--results", args.results, "--html", args.html])
+    if args.command == "forge":
+        from forge import cli as forge_cli
+
+        return forge_cli(args)
     return 1
 
 
