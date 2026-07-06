@@ -225,7 +225,7 @@ def build_parser():
     forge_parser.add_argument("--backends")
     forge_parser.add_argument("--full", action="store_true")
     forge_parser.add_argument("--replay", action="store_true")
-    forge_parser.add_argument("--target", default="haiku")
+    forge_parser.add_argument("--target", default="openai")
     forge_parser.add_argument("--attempts", type=int, default=2)
     forge_parser.add_argument(
         "--generator", default="codex", choices=["codex", "opus", "openai", "google"],

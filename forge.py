@@ -13,7 +13,7 @@ from scorers import parse_json_value, score_case
 
 
 VARIANTS_PER_ATTEMPT = 4
-DEFAULT_TARGET = "haiku"
+DEFAULT_TARGET = "openai"  # writing is a high-value task -> optimize for the strong model people use; haiku is a comparison column only
 DEFAULT_SMOKE_BACKENDS = ["google"]
 FULL_BACKENDS = ["haiku", "openai", "google"]
 
