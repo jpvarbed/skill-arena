@@ -1,0 +1,4 @@
+id = "header-regex-edge"
+category = "regex edge case"
+difficulty = "Header parser must handle common punctuation without losing quoted content."
+test_command = "python -m pytest tests/ -x -q"

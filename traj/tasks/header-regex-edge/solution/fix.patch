@@ -1,0 +1,11 @@
+--- headers.py
++++ headers.py
+@@ -3,7 +3,7 @@
+ from typing import Iterable
+ 
+ 
+-HEADER_RE = re.compile(r"^([A-Za-z0-9_]+):\s*(.*?)\s*(?:#.*)?$")
++HEADER_RE = re.compile(r"^([A-Za-z0-9_-]+):\s*((?:[^#\"]|\"[^\"]*\")*)(?:\s+#.*)?$")
+ 
+ 
+ @dataclass(frozen=True)

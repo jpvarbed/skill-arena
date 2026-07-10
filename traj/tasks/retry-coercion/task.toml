@@ -1,0 +1,4 @@
+id = "retry-coercion"
+category = "type coercion (str/int/None)"
+difficulty = "Retry settings accept strings, integers, and missing values."
+test_command = "python -m pytest tests/ -x -q"

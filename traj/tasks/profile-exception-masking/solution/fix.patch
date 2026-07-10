@@ -1,0 +1,14 @@
+--- profiles.py
++++ profiles.py
+@@ -56,9 +56,9 @@
+ def load_profile(path: str | Path) -> Profile:
+     try:
+         raw = Path(path).read_text()
+-        return parse_profile(json.loads(raw))
+-    except Exception:
++    except FileNotFoundError:
+         return DEFAULT_PROFILE
++    return parse_profile(json.loads(raw))
+ 
+ 
+ def profile_summary(profile: Profile) -> str:

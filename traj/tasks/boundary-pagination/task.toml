@@ -1,0 +1,4 @@
+id = "boundary-pagination"
+category = "off-by-one boundary"
+difficulty = "Pagination ranges use half-open bounds across exact and partial pages."
+test_command = "python -m pytest tests/ -x -q"

@@ -1,0 +1,4 @@
+id = "discount-contract"
+category = "wrong API contract between two functions"
+difficulty = "Pricing helpers disagree about whether discounts are fractions or percentages."
+test_command = "python -m pytest tests/ -x -q"

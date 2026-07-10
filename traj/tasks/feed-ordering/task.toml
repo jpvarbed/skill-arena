@@ -1,0 +1,4 @@
+id = "feed-ordering"
+category = "sort/ordering stability assumption"
+difficulty = "Feed merge must be deterministic when events share timestamps."
+test_command = "python -m pytest tests/ -x -q"

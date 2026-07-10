@@ -1,0 +1,11 @@
+--- settings.py
++++ settings.py
+@@ -14,7 +14,7 @@
+ 
+ 
+ def _coerce_int(value, default: int, name: str) -> int:
+-    if not value:
++    if value is None or value == "":
+         return default
+     try:
+         coerced = int(value)

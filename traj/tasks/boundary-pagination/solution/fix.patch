@@ -1,0 +1,11 @@
+--- paginator.py
++++ paginator.py
+@@ -41,7 +41,7 @@
+     pages: list[Page] = []
+     for page_number in range(_page_count(len(data), page_size)):
+         start = page_number * page_size
+-        end = min(start + page_size - 1, len(data))
++        end = min(start + page_size, len(data))
+         pages.append(Page(page_number + 1, start, end, data[start:end]))
+     return pages
+ 

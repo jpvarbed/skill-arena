@@ -1,0 +1,11 @@
+--- pricing.py
++++ pricing.py
+@@ -39,7 +39,7 @@
+ def apply_discount_cents(subtotal_cents: int, discount_rate: Decimal) -> int:
+     if discount_rate < 0 or discount_rate >= 1:
+         raise ValueError("discount rate must be between 0 and 1")
+-    discount_multiplier = Decimal("1") - (discount_rate / Decimal("100"))
++    discount_multiplier = Decimal("1") - discount_rate
+     total = Decimal(subtotal_cents) * discount_multiplier
+     return int(total.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+ 

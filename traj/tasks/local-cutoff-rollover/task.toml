@@ -1,0 +1,4 @@
+id = "local-cutoff-rollover"
+category = "timezone/date rollover"
+difficulty = "Business cutoffs must roll over by local calendar day across DST."
+test_command = "python -m pytest tests/ -x -q"

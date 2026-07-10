@@ -27,6 +27,26 @@ page from a saved run:
 uv run arena report --results out/results.json --html out/leaderboard.html
 ```
 
+## Forge a Skill
+
+`arena forge` generates blind SKILL.md variants, scores baseline/original/variants on the same
+graded cases, and writes a receipt.
+
+```sh
+# cheap smoke run, one Google backend
+uv run arena forge --skill ai-writing-tell
+
+# hero receipt run: target Haiku plus OpenAI and Google
+uv run arena forge --skill ai-writing-tell --full
+
+# offline replay from saved model outputs, no API calls
+uv run arena forge --replay --results out/forge-results.json
+```
+
+Forge writes `out/forge-results.json`, `out/receipt.html`, and variant files under
+`out/forge-variants/`. A hero requires strict lift over the original on the target model
+(`haiku` by default); ties and regressions render an honest no-improvement receipt.
+
 ## Add a Skill
 
 Create `skills/<name>/config.json`:

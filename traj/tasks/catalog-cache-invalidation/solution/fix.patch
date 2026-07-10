@@ -1,0 +1,10 @@
+--- catalog.py
++++ catalog.py
+@@ -20,6 +20,7 @@
+     def upsert(self, product: Product) -> None:
+         self._validate(product)
+         self._products[product.sku] = product
++        self._price_cache.pop(product.sku, None)
+ 
+     def deactivate(self, sku: str) -> None:
+         product = self._products[sku]

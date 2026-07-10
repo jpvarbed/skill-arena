@@ -1,0 +1,13 @@
+--- notifier.py
++++ notifier.py
+@@ -38,8 +38,9 @@
+     return {"created_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+ 
+ 
+-def build_notification(recipient: str, subject: str, body: str, labels: list[str] = []) -> Notification:
++def build_notification(recipient: str, subject: str, body: str, labels: list[str] | None = None) -> Notification:
+     """Normalize a notification before it is handed to a delivery backend."""
++    labels = list(labels or [])
+     labels.append("transactional")
+     if "urgent" in subject.lower():
+         labels.append("priority")

@@ -1,0 +1,10 @@
+--- schedule.py
++++ schedule.py
+@@ -31,7 +31,7 @@
+     cutoff_time = time(cutoff_hour, 0)
+     now_local = now_utc.astimezone(zone)
+-    candidate_day = now_utc.date()
++    candidate_day = now_local.date()
+     candidate = _combine(candidate_day, cutoff_time, zone)
+     if now_utc >= candidate.astimezone(timezone.utc):
+         candidate = candidate.astimezone(timezone.utc) + timedelta(days=1)

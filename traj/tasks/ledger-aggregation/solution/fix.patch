@@ -1,0 +1,11 @@
+--- ledger.py
++++ ledger.py
+@@ -37,7 +37,7 @@
+     for raw in entries:
+         entry = _normalize_entry(raw)
+         key = f"{entry.account}:{entry.category}"
+-        totals[key] = signed_amount(entry)
++        totals[key] = totals.get(key, Decimal("0")) + signed_amount(entry)
+     return totals
+ 
+ 

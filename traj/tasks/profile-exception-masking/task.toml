@@ -1,0 +1,4 @@
+id = "profile-exception-masking"
+category = "swallowed exception masking the real error"
+difficulty = "Profile loading should default only for missing files, not invalid content."
+test_command = "python -m pytest tests/ -x -q"

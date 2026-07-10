@@ -1,0 +1,4 @@
+id = "catalog-cache-invalidation"
+category = "cache staleness/invalidation"
+difficulty = "Catalog price cache must reflect product updates."
+test_command = "python -m pytest tests/ -x -q"

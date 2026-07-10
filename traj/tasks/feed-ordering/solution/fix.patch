@@ -1,0 +1,11 @@
+--- feedmerge.py
++++ feedmerge.py
+@@ -42,7 +42,7 @@
+                 continue
+             seen.add(key)
+             merged.append(event)
+-    return sorted(merged, key=lambda event: event.happened_at)
++    return sorted(merged, key=lambda event: (event.happened_at, _priority(event.source), event.sequence, event.external_id))
+ 
+ 
+ def summarize_order(events: Iterable[FeedEvent]) -> list[str]:

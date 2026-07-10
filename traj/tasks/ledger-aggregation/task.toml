@@ -1,0 +1,4 @@
+id = "ledger-aggregation"
+category = "accumulator/aggregation logic error"
+difficulty = "Ledger summaries must accumulate repeated account/category entries."
+test_command = "python -m pytest tests/ -x -q"

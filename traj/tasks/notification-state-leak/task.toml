@@ -1,0 +1,4 @@
+id = "notification-state-leak"
+category = "mutable default / state leak across calls"
+difficulty = "Notification normalization should not retain labels from earlier calls."
+test_command = "python -m pytest tests/ -x -q"
