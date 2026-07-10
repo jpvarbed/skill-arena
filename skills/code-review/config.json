@@ -1,0 +1,43 @@
+{
+  "name": "code-review",
+  "skill_path": "~/dev/mattpocockskills/skills/engineering/code-review/SKILL.md",
+  "cases_path": "cases.jsonl",
+  "scorer": {
+    "type": "expect_set"
+  },
+  "forge": {
+    "mode": "code-review",
+    "categories": {
+      "mysterious-name": "a name that doesn't reveal what it does/holds",
+      "duplicated-code": "the same logic shape in more than one place in the change",
+      "feature-envy": "a method that reaches into another object's data more than its own",
+      "data-clumps": "the same few fields/params keep travelling together",
+      "primitive-obsession": "a primitive/string standing in for a domain concept",
+      "repeated-switches": "the same switch/if-cascade on the same type recurs",
+      "shotgun-surgery": "one logical change forces scattered edits across many files",
+      "divergent-change": "one module edited for several unrelated reasons",
+      "speculative-generality": "abstraction/params/hooks added for needs the spec doesn't have",
+      "message-chains": "long a.b().c().d() navigation the caller shouldn't depend on",
+      "middle-man": "a class/function that mostly just delegates onward",
+      "refused-bequest": "a subclass that ignores/overrides most of what it inherits",
+      "spec-missing": "a required behaviour is absent or only partially implemented",
+      "spec-scope-creep": "behaviour added that the spec did not ask for",
+      "spec-wrong": "a required behaviour implemented incorrectly"
+    },
+    "mutation_task": "You are improving a SKILL.md an agent uses to REVIEW a code diff and detect defects along two axes: Standards (Fowler code smells) and Spec (does the diff match the ticket/PRD). A better SKILL.md helps the reviewer catch real planted defects while NOT inventing findings on clean diffs.",
+    "mutation_angles": [
+      "Sharpen each smell's definition and add one crisp positive + negative example, so the reviewer recognizes it in a diff without over-flagging.",
+      "Add a short decision procedure the reviewer runs per hunk, and tighten the spec-vs-diff comparison (missing vs scope-creep vs wrong).",
+      "Reduce false positives: state explicitly what each smell is NOT, with counter-examples of clean code that resembles it.",
+      "Add a compact checklist the reviewer applies before reporting, ordered by how often each defect is missed."
+    ]
+  },
+  "models": {
+    "opus": "claude-opus-4-8",
+    "sonnet": "claude-sonnet-5",
+    "haiku": "claude-haiku-4-5-20251001",
+    "openai": "gpt-5.5",
+    "gemini-pro": "gemini-2.5-pro",
+    "gemini-flash": "gemini-2.5-flash"
+  }
+}
