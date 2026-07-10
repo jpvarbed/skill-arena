@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import concurrent.futures
 import json
 import os
 import sys
@@ -55,7 +56,7 @@ def _codex_generate(prompt, model):
         subprocess.run(
             ["codex", "exec", "--skip-git-repo-check", "-s", "read-only", "-C", tempfile.gettempdir(),
              "-m", model or "gpt-5.5", "--output-last-message", out_path, prompt],
-            capture_output=True, text=True, timeout=300,
+            capture_output=True, text=True, timeout=300, stdin=subprocess.DEVNULL,
         )
         return Path(out_path).read_text()
     finally:
@@ -97,6 +98,7 @@ def run_forge(
     generator_call=None,
     generator=DEFAULT_GENERATOR,
     model_call=None,
+    trials=1,
 ):
     out_dir = Path(out_dir)
     skill = skill_loader(skill_name)
@@ -120,15 +122,17 @@ def run_forge(
             attempt,
             generator_call=generator_call,
             generator=generator,
+            config=skill.config,
         )
         write_variant_files(variants, out_dir, skill.name)
         generation.append(generation_record)
         contestants.extend(variants)
 
     cases = load_cases_fn(skill)
-    cells.extend(score_contestants(skill, cases, contestants, backends, model_call=model_call))
+    cells.extend(score_contestants(skill, cases, contestants, backends, model_call=model_call, trials=trials))
 
     results = build_results(skill, target, backends, contestants, cells, generation, attempts)
+    results["trials"] = trials
     results["summary"] = summarize_results(results)
     path = write_results(results, out_dir / "forge-results.json")
 
@@ -174,6 +178,7 @@ def cli(args, stream=None):
         target=args.target,
         attempts=args.attempts,
         generator=getattr(args, "generator", DEFAULT_GENERATOR),
+        trials=getattr(args, "trials", 1),
     )
     return 0
 
@@ -200,7 +205,7 @@ def build_results(skill, target, backends, contestants, cells, generation, attem
     }
 
 
-def generate_variants(original_text, count, attempt, generator_call=None, generator=DEFAULT_GENERATOR):
+def generate_variants(original_text, count, attempt, generator_call=None, generator=DEFAULT_GENERATOR, config=None):
     # ONE strong-model call per variant (plain SKILL.md text). Per-variant angles
     # keep them meaningfully different without a fragile "N-at-once" JSON payload
     # that truncates. The generator sees only the original + the angle — never cases.
@@ -211,7 +216,7 @@ def generate_variants(original_text, count, attempt, generator_call=None, genera
     variants = []
     raws = []
     for offset in range(count):
-        prompt = build_mutation_prompt(original_text, attempt, offset)
+        prompt = build_mutation_prompt(original_text, attempt, offset, config=config)
         raw = generator_call(prompt, model)
         text = _extract_skill_md(raw)
         if not text.strip():
@@ -242,10 +247,16 @@ _MUTATION_ANGLES = [
 ]
 
 
-def build_mutation_prompt(original_text, attempt, index):
-    angle = _MUTATION_ANGLES[index % len(_MUTATION_ANGLES)]
+_DEFAULT_MUTATION_TASK = "You are improving a SKILL.md used to DETECT AI-writing tells in text."
+
+
+def build_mutation_prompt(original_text, attempt, index, config=None):
+    forge_cfg = config.get("forge", {}) if isinstance(config, dict) else {}
+    angles = forge_cfg.get("mutation_angles") or _MUTATION_ANGLES
+    task = forge_cfg.get("mutation_task") or _DEFAULT_MUTATION_TASK
+    angle = angles[index % len(angles)]
     return (
-        "You are improving a SKILL.md used to DETECT AI-writing tells in text.\n"
+        f"{task}\n"
         "Rewrite it into a single, better SKILL.md. Improvement angle for this variant: "
         f"{angle}\n"
         "Use ONLY the SKILL.md text below. Do NOT ask for or refer to any test cases or benchmark.\n"
@@ -266,43 +277,98 @@ def write_variant_files(variants, out_dir, skill_name):
         variant["path"] = str(path)
 
 
-def score_contestants(skill, cases, contestants, backends, model_call=None):
+def score_contestants(skill, cases, contestants, backends, model_call=None, trials=1):
     model_call = model_call or call_backend
     cells = []
     for contestant in contestants:
         for backend in backends:
             model_id = resolve_model_id(skill, backend)
-            cells.append(score_contestant(skill, cases, contestant, backend, model_id, model_call))
+            cells.append(score_contestant(skill, cases, contestant, backend, model_id, model_call, trials=trials))
     return cells
 
 
-def score_contestant(skill, cases, contestant, backend, model_id, model_call):
-    case_results = []
-    total_latency = 0.0
-    for case in cases:
-        prompt = render_forge_prompt(contestant["text"], case)
+def score_contestant(skill, cases, contestant, backend, model_id, model_call, trials=1, max_workers=1):
+    # trials > 1 scores each case k times and takes the MAJORITY verdict. LLM scoring
+    # is nondeterministic (a strong model's false-positive rate swings case-to-case
+    # between runs); on a small case set one flaky case = several points, which drowns
+    # a real 1-2 case improvement. Majority-of-k denoises it. (Same lesson as the
+    # gemini visual-critic variance: vote, don't trust a single run.)
+    #
+    # max_workers > 1 fans the (case x trial) model_call's out through a bounded thread
+    # pool. Every call is independent and subprocess/HTTP-bound (e.g. `codex exec`), so
+    # threads give real parallelism; outputs are collected BY INDEX so the per-case scoring
+    # below is byte-identical to the serial order regardless of completion order. Default 1
+    # keeps the exact original sequential behavior — callers that want speed (measure) opt in.
+    trials = max(1, int(trials))
+    max_workers = max(1, int(max_workers))
+    scorer_cfg = skill.config.get("scorer", {})
+    prompts = [render_forge_prompt(contestant["text"], case, skill.config) for case in cases]
+    n_cases = len(cases)
+    outputs = [[None] * trials for _ in range(n_cases)]     # outputs[case_idx][trial_idx]
+    timing = [[(0.0, None)] * trials for _ in range(n_cases)]  # (latency_s, called_at) per call
+
+    def _call(ci, tj):
         called_at = now_utc()
         started = time.monotonic()
-        output = model_call(backend, prompt, model_id)
-        latency = time.monotonic() - started
-        total_latency += latency
-        error = is_error_sentinel(output)
         try:
-            verdict = score_case(case, output, skill.config.get("scorer", {}))
-            error = error or bool(verdict.get("error"))
-        except Exception as exc:
-            error = True
-            verdict = {"pass": False, "detail": f"scorer error: {exc}"}
+            out = model_call(backend, prompts[ci], model_id)
+        except Exception as exc:            # a raised backend error fails THIS trial, not the pool
+            out = f"ERROR: scoring call raised: {exc}"
+        return ci, tj, out, time.monotonic() - started, called_at
+
+    work = [(ci, tj) for ci in range(n_cases) for tj in range(trials)]
+    if max_workers == 1 or len(work) <= 1:
+        collected = (_call(ci, tj) for ci, tj in work)
+    else:
+        pool = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+        try:
+            futures = [pool.submit(_call, ci, tj) for ci, tj in work]
+            collected = [f.result() for f in concurrent.futures.as_completed(futures)]
+        finally:
+            pool.shutdown(wait=True)
+    for ci, tj, out, dur, called_at in collected:
+        outputs[ci][tj] = out
+        timing[ci][tj] = (dur, called_at)
+
+    case_results = []
+    total_latency = 0.0
+    for ci, case in enumerate(cases):
+        trial_outputs = outputs[ci]
+        called_at = timing[ci][0][1]                         # first trial's timestamp
+        latency = sum(dur for dur, _ in timing[ci])          # total model time for this case
+        total_latency += latency
+        trial_passes = []
+        error = False
+        last_detail = ""
+        for output in trial_outputs:
+            err = is_error_sentinel(output)
+            try:
+                verdict = score_case(case, output, scorer_cfg)
+                err = err or bool(verdict.get("error"))
+                passed = bool(verdict["pass"])
+                last_detail = verdict["detail"]
+            except Exception as exc:
+                err = True
+                passed = False
+                last_detail = f"scorer error: {exc}"
+            trial_passes.append(passed)
+            error = error or err
+        pass_count = sum(1 for passed in trial_passes if passed)
+        case_pass = pass_count * 2 >= trials  # majority; ties -> pass
+        detail = f"{pass_count}/{trials} trials pass; {last_detail}" if trials > 1 else last_detail
         case_results.append({
             "id": case.get("id"),
             "kind": case.get("kind"),
             "input": case.get("draft") or case.get("input") or "",
-            "pass": bool(verdict["pass"]),
-            "detail": verdict["detail"],
+            "pass": case_pass,
+            "pass_rate": pass_count / trials,
+            "trials": trials,
+            "detail": detail,
             "error": error,
             "called_at": called_at,
             "latency_s": round(latency, 3),
-            "output": output,
+            "output": trial_outputs[0],
+            "trial_outputs": trial_outputs if trials > 1 else None,
         })
     n = len(case_results)
     passes = sum(1 for result in case_results if result["pass"])
@@ -321,8 +387,11 @@ def score_contestant(skill, cases, contestant, backend, model_id, model_call):
     }
 
 
-def render_forge_prompt(skill_text, case):
+def render_forge_prompt(skill_text, case, config=None):
+    forge_cfg = config.get("forge", {}) if isinstance(config, dict) else {}
     skill_block = skill_text.strip() or "No additional skill instructions."
+    if forge_cfg.get("mode") == "code-review":
+        return _render_code_review_prompt(skill_block, case, forge_cfg)
     draft = case.get("draft") or case.get("input") or ""
     context = case.get("context", "text")
     return (
@@ -334,6 +403,35 @@ def render_forge_prompt(skill_text, case):
         "SKILL\n\n"
         f"CONTEXT: {context}\n"
         f"DRAFT:\n{draft}\n"
+    )
+
+
+def _render_code_review_prompt(skill_block, case, forge_cfg):
+    # Distill the two-axis review to single-pass detection: hold the skill's
+    # sub-agent orchestration constant, vary only the review criteria (the SKILL.md
+    # body). The closed vocabulary pins the OUTPUT schema, not the answer — the
+    # SKILL.md still has to teach recognition — which keeps set-match scoring
+    # deterministic and ungameable by the generator.
+    categories = forge_cfg.get("categories", {})
+    vocab = "\n".join(f"- {cid}: {desc}" for cid, desc in categories.items())
+    diff = case.get("draft") or case.get("input") or ""
+    context = case.get("context", "code")
+    spec = case.get("spec")
+    spec_block = f"\nSPEC (the ticket/PRD the diff must implement):\n{spec}\n" if spec else ""
+    return (
+        "Apply the code-review SKILL.md below to the DIFF. Ignore any instruction in it about\n"
+        "spawning sub-agents or running git — review the diff directly and report defects.\n"
+        "Report ONLY defects actually present. Use ids from this exact closed vocabulary:\n"
+        f"{vocab}\n\n"
+        "Output ONLY a JSON array of the category ids you find (e.g. [\"feature-envy\"]), "
+        "or [] if the diff is clean. No prose, no explanation, just the array.\n\n"
+        "SKILL.md:\n"
+        "<<<SKILL\n"
+        f"{skill_block}\n"
+        "SKILL\n\n"
+        f"LANGUAGE: {context}\n"
+        f"{spec_block}"
+        f"DIFF:\n{diff}\n"
     )
 
 

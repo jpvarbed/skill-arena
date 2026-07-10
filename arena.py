@@ -176,8 +176,20 @@ def render_prompt(skill, case, variant):
             "input": case.get("input") or case.get("draft") or "",
             "draft": case.get("draft") or case.get("input") or "",
         }
-        return template.format(**values)
-    return case.get("input") or case.get("draft") or ""
+        prompt = template.format(**values)
+    else:
+        prompt = case.get("input") or case.get("draft") or ""
+    if variant.get("inject_skill"):
+        skill_path = Path(skill.config["skill_path"]).expanduser()
+        if not skill_path.is_absolute():
+            skill_path = skill.directory / skill_path
+        skill_text = skill_path.read_text()
+        if skill_text.startswith("---\n"):
+            _, sep, rest = skill_text.partition("\n---\n")
+            if sep:
+                skill_text = rest
+        return skill_text.strip() + "\n\n" + prompt
+    return prompt
 
 
 def dry_run_output(skill, case):
@@ -227,6 +239,10 @@ def build_parser():
     forge_parser.add_argument("--replay", action="store_true")
     forge_parser.add_argument("--target", default="openai")
     forge_parser.add_argument("--attempts", type=int, default=2)
+    forge_parser.add_argument(
+        "--trials", type=int, default=1,
+        help="Score each case k times and take the MAJORITY verdict (denoises LLM nondeterminism). Default 1.",
+    )
     forge_parser.add_argument(
         "--generator", default="codex", choices=["codex", "opus", "openai", "google"],
         help="Model that GENERATES variants (the leverage step). Default codex = GPT-5.5 on subscription.",

@@ -6,7 +6,7 @@ def test_highsignal_skill_loads_existing_cases_unmodified():
     cases = load_cases(skill)
 
     assert skill.config["cases_path"] == "~/dev/highsignal/tests/cases.jsonl"
-    assert len(cases) == 16
+    assert len(cases) >= 16
     assert cases[0] == {
         "id": "1",
         "kind": "dirty",

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import difflib
 import html
 import json
 import sys
@@ -27,6 +28,127 @@ def write_leaderboard(results, path):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(render_html(results))
     return path
+
+
+def write_forge_receipt(results, path):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render_forge_receipt(results))
+    return path
+
+
+def render_forge_receipt(results):
+    from forge import contestant_text, fixed_cases, format_pct, format_pp, original_text, summarize_results
+
+    summary = results.get("summary") or summarize_results(results)
+    winner = summary.get("winner")
+    target = summary.get("target")
+    target_row = next((row for row in summary.get("models", []) if row["backend"] == target), None)
+    winner_text = contestant_text(results, winner) if winner else ""
+    diff = render_skill_diff(original_text(results), winner_text, winner or "winner")
+    fixed = fixed_cases(results, winner, target) if winner else []
+    shown_fixed = fixed[:3] if len(fixed) > 3 else fixed
+    narrative = forge_narrative(summary, target_row, len([c for c in results.get("contestants", []) if c.get("kind") == "variant"]))
+
+    rows = "\n".join(
+        "<tr>"
+        f"<td>{html.escape(_pretty_model(row['backend']))}</td>"
+        f"<td>{html.escape(format_pct(row['original_score']))}</td>"
+        f"<td>{html.escape(row['best_variant'] or '-')} {html.escape(format_pct(row['best_variant_score']))}</td>"
+        f"<td>{html.escape(format_pp(row['lift']))}</td>"
+        f"<td>{html.escape(winner or '-')} {html.escape(format_pct(row['winner_score']))}</td>"
+        "</tr>"
+        for row in summary.get("models", [])
+    )
+    fixed_html = render_fixed_cases(shown_fixed, len(fixed))
+    title = "Skill forge receipt" if summary.get("success") else "No improvement found"
+
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(title)}</title>
+<style>
+:root {{ --ink:#101114; --paper:#f7f3ea; --muted:#6d675e; --line:#d8d0c2; --good:#13795b; --bad:#9f2f2f; }}
+* {{ box-sizing:border-box; }}
+body {{ margin:0; background:var(--paper); color:var(--ink); font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }}
+main {{ max-width:960px; margin:0 auto; padding:40px 20px 64px; }}
+h1 {{ margin:0 0 12px; font-size:42px; line-height:1.05; }}
+h2 {{ margin:34px 0 12px; font-size:22px; }}
+p {{ font-size:17px; line-height:1.55; max-width:72ch; }}
+table {{ width:100%; border-collapse:collapse; background:#fffaf0; border:1px solid var(--line); }}
+th, td {{ text-align:left; padding:11px 12px; border-bottom:1px solid var(--line); vertical-align:top; }}
+th {{ font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }}
+pre {{ overflow:auto; background:#181a1f; color:#f4efe4; padding:16px; border-radius:8px; line-height:1.45; }}
+.meta {{ color:var(--muted); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13px; }}
+.ok {{ color:var(--good); }}
+.bad {{ color:var(--bad); }}
+.case {{ background:#fffaf0; border:1px solid var(--line); padding:14px; margin:10px 0; border-radius:8px; }}
+</style>
+</head>
+<body>
+<main>
+<p class="meta">skill-arena forge | target {html.escape(_pretty_model(target or ''))} | winner {html.escape(winner or 'none')}</p>
+<h1>{html.escape(title)}</h1>
+<p>{html.escape(narrative)}</p>
+<h2>Before / after</h2>
+<table>
+<thead><tr><th>Model</th><th>Original</th><th>Best variant</th><th>Lift</th><th>Winner</th></tr></thead>
+<tbody>{rows}</tbody>
+</table>
+<h2>Winning SKILL.md diff</h2>
+<pre>{html.escape(diff)}</pre>
+<h2>Cases the winner fixed</h2>
+{fixed_html}
+</main>
+</body>
+</html>
+"""
+
+
+def forge_narrative(summary, target_row, variant_count):
+    if summary.get("success") and target_row:
+        before = target_row["original_score"]
+        after = target_row["best_variant_score"]
+        lift = target_row["lift"] or 0
+        return (
+            "A generated variant beat the original on the target model. "
+            f"{_pretty_model(summary['target'])} moved from {before * 100:.1f}% to {after * 100:.1f}%, "
+            f"a {abs(lift) * 100:.1f} point lift."
+        )
+    return (
+        "No improvement found. "
+        f"This run tested {variant_count} generated variants against the same cases, "
+        "and none beat the original on the target model. The table and diff make the failed run auditable."
+    )
+
+
+def render_skill_diff(before, after, winner):
+    lines = difflib.unified_diff(
+        before.splitlines(),
+        after.splitlines(),
+        fromfile="original/SKILL.md",
+        tofile=f"{winner}/SKILL.md",
+        lineterm="",
+    )
+    diff = "\n".join(lines)
+    return diff or "No textual diff."
+
+
+def render_fixed_cases(cases, total):
+    if not cases:
+        return "<p>No target-model fixes for the selected winner.</p>"
+    items = []
+    for case in cases:
+        items.append(
+            '<div class="case">'
+            f'<p class="meta">{html.escape(str(case.get("id", "")))}</p>'
+            f'<p>{html.escape(case.get("input", ""))}</p>'
+            "</div>"
+        )
+    note = "" if total <= len(cases) else f"<p class=\"meta\">Showing {len(cases)} of {total} fixed cases.</p>"
+    return note + "\n".join(items)
 
 
 def format_cell(cell):

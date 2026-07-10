@@ -1,5 +1,6 @@
 {
   "name": "highsignal",
+  "skill_path": "~/dev/highsignal/SKILL.md",
   "cases_path": "~/dev/highsignal/tests/cases.jsonl",
   "prompt_variants": [
     {

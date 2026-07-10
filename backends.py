@@ -11,14 +11,33 @@ ERROR_SENTINEL_PREFIX = "ERROR:"
 
 # ---- backends: prompt -> raw text ----
 def call_codex(prompt, model):
-    out = subprocess.run(["codex", "exec", "--skip-git-repo-check", prompt],
-                         capture_output=True, text=True, timeout=180)
-    text = out.stdout + "\n" + out.stderr
-    # a quota-limited codex answers every case with an error banner; without this
-    # guard that scores as [] and a full-suite wipeout masquerades as case failures
-    if "hit your usage limit" in text:
-        raise RuntimeError("codex usage limit hit; retry after the reset shown in the codex error")
-    return text
+    # subscription GPT-5.5 (flat cost, no per-call metering) — the cost-right backend for
+    # batch scoring/judging. `--output-last-message` returns the clean final message (no
+    # agent banner) so it parses like an API reply. Trade-off: codex spins up an agent per
+    # call, so it's SLOWER than the metered API — right when cost matters more than latency.
+    import tempfile
+    with tempfile.NamedTemporaryFile("r", suffix=".txt", delete=False) as tf:
+        out_path = tf.name
+    try:
+        proc = subprocess.run(
+            ["codex", "exec", "--skip-git-repo-check", "-s", "read-only",
+             "-C", tempfile.gettempdir(), "-m", model or "gpt-5.5",
+             "--output-last-message", out_path, prompt],
+            capture_output=True, text=True, timeout=300, stdin=subprocess.DEVNULL,
+        )
+        banner = proc.stdout + "\n" + proc.stderr
+        # a quota-limited codex answers with an error banner; without this guard that
+        # scores as [] and a full-suite wipeout masquerades as case failures
+        if "hit your usage limit" in banner:
+            raise RuntimeError("codex usage limit hit; retry after the reset shown in the codex error")
+        with open(out_path) as fh:
+            message = fh.read().strip()
+        return message or banner
+    finally:
+        try:
+            os.unlink(out_path)
+        except OSError:
+            pass
 
 def call_claude_cli(prompt, model):
     args = ["claude", "-p", prompt] + (["--model", model] if model else [])

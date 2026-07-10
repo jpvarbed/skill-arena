@@ -165,3 +165,118 @@ def test_receipt_renders_hero_and_honest_negative_branches():
     assert "No improvement found." in negative
     assert "Before / after" in negative
     assert "Winning SKILL.md diff" in negative
+
+
+def test_render_forge_prompt_defaults_to_tells_mode():
+    from forge import render_forge_prompt
+
+    prompt = render_forge_prompt("SKILLBODY", {"draft": "DRAFTBODY", "kind": "dirty"}, None)
+
+    assert "tell ids" in prompt
+    assert "DRAFTBODY" in prompt
+    assert "SKILLBODY" in prompt
+
+
+def test_render_forge_prompt_code_review_mode_uses_diff_spec_and_vocab():
+    from forge import render_forge_prompt
+
+    config = {"forge": {"mode": "code-review", "categories": {"feature-envy": "reaches into another object"}}}
+    case = {"id": "x", "kind": "dirty", "expect": "spec-missing", "draft": "DIFFBODY", "spec": "SPECBODY", "context": "typescript"}
+
+    prompt = render_forge_prompt("SKILLBODY", case, config)
+
+    assert "DIFFBODY" in prompt          # the diff under review
+    assert "SPECBODY" in prompt          # the spec, included because present
+    assert "feature-envy" in prompt      # the closed vocabulary
+    assert "SKILLBODY" in prompt         # the skill under test
+    assert "JSON array" in prompt
+    assert "tell ids" not in prompt      # not the highsignal wording
+
+
+def test_render_forge_prompt_code_review_omits_spec_when_absent():
+    from forge import render_forge_prompt
+
+    config = {"forge": {"mode": "code-review", "categories": {"mysterious-name": "unclear name"}}}
+    case = {"id": "y", "kind": "dirty", "expect": "mysterious-name", "draft": "DIFFONLY", "context": "typescript"}
+
+    prompt = render_forge_prompt("SKILL", case, config)
+
+    assert "DIFFONLY" in prompt
+    assert "SPEC (" not in prompt        # no spec block when the case has no spec
+
+
+def test_build_mutation_prompt_uses_config_task_and_angles_and_stays_blind():
+    from forge import build_mutation_prompt
+
+    config = {"forge": {"mutation_task": "REVIEW TASK", "mutation_angles": ["ANGLE-A", "ANGLE-B"]}}
+
+    p0 = build_mutation_prompt("ORIGINAL", 1, 0, config=config)
+    p1 = build_mutation_prompt("ORIGINAL", 1, 1, config=config)
+
+    assert "REVIEW TASK" in p0 and "ANGLE-A" in p0
+    assert "ANGLE-B" in p1
+    assert "ORIGINAL" in p0
+    # default (no config) preserves the highsignal framing byte-for-byte
+    assert "AI-writing tells" in build_mutation_prompt("ORIG", 1, 0)
+
+
+def test_score_contestant_majority_vote_denoises_trials():
+    from forge import score_contestant
+
+    skill = Skill(name="t", directory=None, config={"scorer": {"type": "expect_set"}})
+    cases = [{"id": "d1", "kind": "dirty", "expect": "x", "draft": "..."}]
+    # a flaky case: passes 2 of 3 trials -> majority pass, pass_rate 2/3
+    outputs = iter(['["x"]', '["x"]', '[]'])
+
+    def model_call(backend, prompt, model):
+        return next(outputs)
+
+    cell = score_contestant(skill, cases, {"id": "c", "text": "S"}, "openai", "m", model_call, trials=3)
+
+    assert cell["cases"][0]["pass_rate"] == 2 / 3
+    assert cell["cases"][0]["pass"] is True
+    assert cell["cases"][0]["trials"] == 3
+
+
+def test_score_contestant_parallel_matches_serial():
+    # HAR-44: measure scoring is embarrassingly parallel (case x trial calls are independent).
+    # max_workers>1 must give BYTE-IDENTICAL correctness results to serial and PRESERVE case order
+    # (downstream measure.py pairs baseline vs candidate by position — a reorder would mis-pair).
+    import threading
+
+    from forge import score_contestant
+
+    skill = Skill(name="t", directory=None, config={"scorer": {"type": "expect_set"}})
+    cases = [
+        {"id": "d1", "kind": "dirty", "expect": "x", "draft": "aa"},
+        {"id": "d2", "kind": "dirty", "expect": "y", "draft": "bb"},
+        {"id": "c1", "kind": "clean", "expect": "", "draft": "cc"},
+        {"id": "d3", "kind": "dirty", "expect": "z", "draft": "dd"},
+    ]
+    calls = {"n": 0}
+    lock = threading.Lock()
+
+    def model_call(backend, prompt, model):
+        # deterministic + ORDER-INDEPENDENT: output keyed on the case (embedded in the prompt),
+        # exactly how a real backend behaves (a pure function of its args, not of call order).
+        with lock:
+            calls["n"] += 1
+        if "aa" in prompt:
+            return '["x"]'          # d1 catches its tell -> pass
+        if "bb" in prompt:
+            return '["q"]'          # d2 flags the wrong tell -> miss
+        if "cc" in prompt:
+            return "[]"             # c1 clean -> correct on a clean case
+        return '["z"]'              # d3 catches its tell -> pass
+
+    args = (skill, cases, {"id": "c", "text": "S"}, "openai", "m", model_call)
+    serial = score_contestant(*args, trials=3, max_workers=1)
+    parallel = score_contestant(*args, trials=3, max_workers=8)
+
+    def shape(cell):
+        return [(c["id"], c["pass"], c["pass_rate"], c["trials"]) for c in cell["cases"]]
+
+    assert shape(parallel) == shape(serial)                       # identical verdicts...
+    assert [c["id"] for c in parallel["cases"]] == ["d1", "d2", "c1", "d3"]  # ...in INPUT order
+    assert parallel["score"] == serial["score"]
+    assert calls["n"] == 2 * len(cases) * 3                       # every case x trial ran, both runs
