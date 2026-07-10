@@ -1,0 +1,22 @@
+{
+  "name": "csv-analysis",
+  "skill_path": "SKILL.md",
+  "cases_path": "cases.jsonl",
+  "prompt_variants": [
+    {
+      "name": "baseline",
+      "template": "{input}"
+    },
+    {
+      "name": "with-skill",
+      "inject_skill": true,
+      "template": "{input}"
+    }
+  ],
+  "scorer": {
+    "type": "deterministic"
+  },
+  "models": {
+    "codex": "gpt-5.5"
+  }
+}
