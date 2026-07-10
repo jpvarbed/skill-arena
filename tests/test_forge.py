@@ -238,6 +238,58 @@ def test_score_contestant_majority_vote_denoises_trials():
     assert cell["cases"][0]["trials"] == 3
 
 
+def test_score_contestant_even_trials_tie_fails():
+    # Council finding on HAR-44: `pass_count * 2 >= trials` let an even-k tie count as a
+    # pass (trials=2, 1/2 -> pass), inflating denoised scores. STRICT majority: tie = fail.
+    from forge import score_contestant
+
+    skill = Skill(name="t", directory=None, config={"scorer": {"type": "expect_set"}})
+    cases = [{"id": "d1", "kind": "dirty", "expect": "x", "draft": "..."}]
+    outputs = iter(['["x"]', "[]"])  # 1 pass, 1 fail -> tie
+
+    def model_call(backend, prompt, model):
+        return next(outputs)
+
+    cell = score_contestant(skill, cases, {"id": "c", "text": "S"}, "openai", "m", model_call, trials=2)
+
+    assert cell["cases"][0]["pass_rate"] == 1 / 2
+    assert cell["cases"][0]["pass"] is False  # a tie is not evidence of a pass
+
+
+def test_run_forge_plumbs_max_workers_to_scoring(tmp_path):
+    # Council finding on HAR-44: the forge CLI path stayed serial — run_forge never
+    # forwarded max_workers. Assert the plumbing end-to-end via a spying score path.
+    import forge
+
+    seen = {}
+    real = forge.score_contestant
+
+    def spy(skill, cases, contestant, backend, model_id, model_call, trials=1, max_workers=1):
+        seen["max_workers"] = max_workers
+        return real(skill, cases, contestant, backend, model_id, model_call, trials=trials, max_workers=max_workers)
+
+    original = forge.score_contestants
+    try:
+        forge.score_contestants = lambda skill, cases, contestants, backends, model_call=None, trials=1, max_workers=1: (
+            seen.__setitem__("max_workers", max_workers) or []
+        )
+        forge.run_forge(
+            "highsignal",
+            ["openai"],
+            out_dir=tmp_path,
+            target="openai",
+            attempts=1,
+            generator_call=lambda prompt, model: "SKILL",
+            model_call=lambda backend, prompt, model: "[]",
+            trials=2,
+            max_workers=7,
+        )
+    finally:
+        forge.score_contestants = original
+
+    assert seen["max_workers"] == 7
+
+
 def test_score_contestant_parallel_matches_serial():
     # HAR-44: measure scoring is embarrassingly parallel (case x trial calls are independent).
     # max_workers>1 must give BYTE-IDENTICAL correctness results to serial and PRESERVE case order

@@ -99,6 +99,7 @@ def run_forge(
     generator=DEFAULT_GENERATOR,
     model_call=None,
     trials=1,
+    max_workers=1,
 ):
     out_dir = Path(out_dir)
     skill = skill_loader(skill_name)
@@ -129,7 +130,7 @@ def run_forge(
         contestants.extend(variants)
 
     cases = load_cases_fn(skill)
-    cells.extend(score_contestants(skill, cases, contestants, backends, model_call=model_call, trials=trials))
+    cells.extend(score_contestants(skill, cases, contestants, backends, model_call=model_call, trials=trials, max_workers=max_workers))
 
     results = build_results(skill, target, backends, contestants, cells, generation, attempts)
     results["trials"] = trials
@@ -179,6 +180,7 @@ def cli(args, stream=None):
         attempts=args.attempts,
         generator=getattr(args, "generator", DEFAULT_GENERATOR),
         trials=getattr(args, "trials", 1),
+        max_workers=getattr(args, "workers", 1),
     )
     return 0
 
@@ -277,13 +279,13 @@ def write_variant_files(variants, out_dir, skill_name):
         variant["path"] = str(path)
 
 
-def score_contestants(skill, cases, contestants, backends, model_call=None, trials=1):
+def score_contestants(skill, cases, contestants, backends, model_call=None, trials=1, max_workers=1):
     model_call = model_call or call_backend
     cells = []
     for contestant in contestants:
         for backend in backends:
             model_id = resolve_model_id(skill, backend)
-            cells.append(score_contestant(skill, cases, contestant, backend, model_id, model_call, trials=trials))
+            cells.append(score_contestant(skill, cases, contestant, backend, model_id, model_call, trials=trials, max_workers=max_workers))
     return cells
 
 
@@ -354,7 +356,7 @@ def score_contestant(skill, cases, contestant, backend, model_id, model_call, tr
             trial_passes.append(passed)
             error = error or err
         pass_count = sum(1 for passed in trial_passes if passed)
-        case_pass = pass_count * 2 >= trials  # majority; ties -> pass
+        case_pass = pass_count * 2 > trials  # STRICT majority; even-k tie -> fail (fail-closed — a tie is not evidence of a pass)
         detail = f"{pass_count}/{trials} trials pass; {last_detail}" if trials > 1 else last_detail
         case_results.append({
             "id": case.get("id"),

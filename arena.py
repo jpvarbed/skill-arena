@@ -247,6 +247,10 @@ def build_parser():
         "--generator", default="codex", choices=["codex", "opus", "openai", "google"],
         help="Model that GENERATES variants (the leverage step). Default codex = GPT-5.5 on subscription.",
     )
+    forge_parser.add_argument(
+        "--workers", type=int, default=1,
+        help="Parallel scoring calls per contestant (case x trial are independent). Default 1 (serial).",
+    )
     forge_parser.add_argument("--results", default=str(OUT_DIR / "forge-results.json"))
     forge_parser.add_argument("--out-dir", default=str(OUT_DIR))
     return parser
