@@ -253,6 +253,12 @@ def build_parser():
     )
     forge_parser.add_argument("--results", default=str(OUT_DIR / "forge-results.json"))
     forge_parser.add_argument("--out-dir", default=str(OUT_DIR))
+
+    publish_parser = sub.add_parser("publish")
+    publish_parser.add_argument("--skills-repo", required=True)
+    publish_parser.add_argument("--dry-run", action="store_true")
+    publish_parser.add_argument("--verify", action="store_true")
+    publish_parser.add_argument("--report", help="with --verify: write a verification record to this path")
     return parser
 
 
@@ -271,6 +277,10 @@ def main(argv=None):
         from forge import cli as forge_cli
 
         return forge_cli(args)
+    if args.command == "publish":
+        from publish import cli as publish_cli
+
+        return publish_cli(args)
     return 1
 
 

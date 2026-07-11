@@ -1,0 +1,4 @@
+{"id": "1", "kind": "dirty", "context": "social", "expect": "throat-clear", "draft": "One thing that really helps with agent reliability: you specify an output format."}
+{"id": "2", "kind": "dirty", "context": "social", "expect": "claimed-emotion", "draft": "What surprised me most was that a smaller model handled the routing just fine."}
+{"id": "3", "kind": "dirty", "context": "social", "expect": "manufactured-drama", "draft": "I built a linter that refuses to let your code lie to you."}
+{"id": "4", "kind": "dirty", "context": "social", "expect": ["manufactured-quotability", "parataxis"], "draft": "The cache was always the bottleneck. The database was just along for the ride."}

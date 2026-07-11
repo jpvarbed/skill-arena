@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "skill": "ai-writing-tell",
+  "target": "openai",
+  "attempts_requested": 2,
+  "variants_per_attempt": 4,
+  "cases_path": "~/dev/highsignal/tests/cases.jsonl",
+  "contestants": [
+    {
+      "id": "baseline",
+      "kind": "baseline",
+      "text": ""
+    },
+    {
+      "id": "original",
+      "kind": "original",
+      "text": "original skill"
+    },
+    {
+      "id": "v1",
+      "kind": "variant",
+      "attempt": 1,
+      "text": "variant one"
+    },
+    {
+      "id": "v2",
+      "kind": "variant",
+      "attempt": 1,
+      "text": "variant two"
+    }
+  ],
+  "models": [
+    {
+      "backend": "haiku",
+      "model_id": "claude-haiku-4-5-20251001"
+    },
+    {
+      "backend": "openai",
+      "model_id": "gpt-5.5"
+    }
+  ],
+  "cells": [
+    {
+      "contestant": "original",
+      "backend": "haiku",
+      "model_id": "claude-haiku-4-5-20251001",
+      "score": 0.5789473684210527,
+      "passes": 11,
+      "n": 19,
+      "errors": 0
+    },
+    {
+      "contestant": "v1",
+      "backend": "haiku",
+      "model_id": "claude-haiku-4-5-20251001",
+      "score": 0.47368421052631576,
+      "passes": 9,
+      "n": 19,
+      "errors": 0
+    },
+    {
+      "contestant": "v2",
+      "backend": "haiku",
+      "model_id": "claude-haiku-4-5-20251001",
+      "score": 0.21052631578947367,
+      "passes": 4,
+      "n": 19,
+      "errors": 0
+    },
+    {
+      "contestant": "original",
+      "backend": "openai",
+      "model_id": "gpt-5.5",
+      "score": 0.5263157894736842,
+      "passes": 10,
+      "n": 19,
+      "errors": 0
+    },
+    {
+      "contestant": "v1",
+      "backend": "openai",
+      "model_id": "gpt-5.5",
+      "score": 0.5263157894736842,
+      "passes": 10,
+      "n": 19,
+      "errors": 0
+    },
+    {
+      "contestant": "v2",
+      "backend": "openai",
+      "model_id": "gpt-5.5",
+      "score": 0.631578947368421,
+      "passes": 12,
+      "n": 19,
+      "errors": 0
+    }
+  ]
+}
