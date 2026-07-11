@@ -2,6 +2,11 @@
 
 This benchmark measures whether loading a debugging skill changes both the outcome and the path a coding agent takes when fixing failing Python tests.
 
+It has two tiers:
+
+- Tier 1: small authored Python tasks in `traj/tasks/`. These saturate by design on strong models and are mainly useful for measuring method adoption: test-first behavior, verification after edits, file churn, and similar trajectory signals.
+- Tier 2: frozen SWE-bench Verified instances in `traj/tier2/`. These are real issues run on disposable exe.dev cloud boxes with Docker and measure effectiveness: resolved issues, FAIL_TO_PASS progress, and PASS_TO_PASS regressions.
+
 The task corpus lives in `traj/tasks/`. Each task starts with one realistic bug and a pytest suite where at least one test fails. The benchmark runs fresh copies of each task across two arms:
 
 - `baseline`: no skill prompt
@@ -32,6 +37,57 @@ Generate a receipt:
 ```bash
 python traj/report.py
 ```
+
+## Tier 2 Commands
+
+Tier 2 uses optional live dependencies. Do not add them to the core project dependencies; install them into the repo venv when running the live pipeline:
+
+```bash
+uv pip install swebench datasets
+```
+
+Select deterministic overflow candidates from SWE-bench Verified:
+
+```bash
+python -m traj.tier2.select_instances
+```
+
+Validate candidates on real exe.dev boxes and freeze the first 12 that pass the gold/no-op checks:
+
+```bash
+python -m traj.tier2.validate_instances
+```
+
+Run the tier-2 matrix:
+
+```bash
+python -m traj.tier2.run_tier2 --skill-file path/to/debugging-skill.md
+```
+
+Run one smoke cell:
+
+```bash
+python -m traj.tier2.run_tier2 --smoke --arms baseline
+```
+
+Generate the tier-2 receipt:
+
+```bash
+python -m traj.tier2.report_tier2
+```
+
+Clean up leftover runner-created boxes:
+
+```bash
+python -m traj.tier2.run_tier2 cleanup
+```
+
+Required live environment variables:
+
+- `exe_dev_skill_arena_forever_ssh_key`: bearer token for exe.dev lifecycle calls.
+- `AGENT_API_KEY`: agent key made available to the remote box command as `ANTHROPIC_API_KEY="$AGENT_API_KEY"`.
+
+Tier 2 is the expensive tier. Each instance creates a disposable exe.dev box, pulls the prebuilt SWE-bench image, copies `/testbed` out of a fresh container, runs the agent over ssh, copies the stream-json trace back before teardown, and grades the patch through the SWE-bench helpers. Keep `--parallel-boxes` at or below `3`.
 
 ## Runner Flags
 
@@ -73,6 +129,32 @@ python traj/report.py
 ```
 
 `traj/out/receipt.md` summarizes raw trial fix rates, majority-of-k task fix rates, per-task trajectory metrics, timeout or tamper incidents, and a frozen task manifest with repo tree hashes.
+
+Tier-2 rows live at `traj/out/tier2/results.json` by default:
+
+```json
+{
+  "instance_id": "repo__project-123",
+  "arm": "baseline",
+  "trial": 1,
+  "resolved": false,
+  "fail_to_pass_passed": 2,
+  "pass_to_pass_regressions": 0,
+  "timeout": false,
+  "duration_s": 123.4,
+  "metrics": {
+    "ran_test_before_edit": true,
+    "verified_after_last_edit": true,
+    "files_edited": 2,
+    "test_runs": 3,
+    "flail_index": 5,
+    "stated_hypothesis": true,
+    "parse_errors": 0
+  },
+  "trace_path": "traj/out/tier2/traces/repo__project-123_baseline_1.jsonl",
+  "box_name": "t2-repo-project-1"
+}
+```
 
 ## Caveats
 
