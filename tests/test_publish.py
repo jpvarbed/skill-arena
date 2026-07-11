@@ -219,3 +219,15 @@ def test_arena_publish_cli_path(tmp_path):
     root = make_repo(tmp_path)
 
     assert arena.main(["publish", "--skills-repo", str(root), "--dry-run"]) == 0
+
+
+def test_verify_writes_acceptance_report(tmp_path):
+    import publish as publish_mod
+
+    repo = make_repo(tmp_path)
+    publish_mod.run_publish(repo)
+    report = tmp_path / "verification.md"
+    assert publish_mod.run_verify(repo, report_path=report) == 0
+    text = report.read_text()
+    assert "Publish verification record" in text
+    assert "| yes |" in text

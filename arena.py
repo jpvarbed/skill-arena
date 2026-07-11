@@ -258,6 +258,7 @@ def build_parser():
     publish_parser.add_argument("--skills-repo", required=True)
     publish_parser.add_argument("--dry-run", action="store_true")
     publish_parser.add_argument("--verify", action="store_true")
+    publish_parser.add_argument("--report", help="with --verify: write a verification record to this path")
     return parser
 
 
