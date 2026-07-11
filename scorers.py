@@ -57,6 +57,17 @@ def score_deterministic(case, model_output):
         ok = str(model_output).strip() == str(rules).strip()
         return {"pass": ok, "detail": "exact match" if ok else f"expected exact {rules!r}"}
 
+    if "checks" in rules:
+        if set(rules) != {"checks"}:
+            raise ValueError("cannot mix expect.checks with legacy deterministic rules")
+        checks = [score_deterministic_check(check, model_output) for check in rules["checks"]]
+        failures = [check["id"] for check in checks if not check["pass"]]
+        return {
+            "pass": bool(checks) and not failures,
+            "detail": "all checks passed" if checks and not failures else f"failed checks: {', '.join(failures) or 'none declared'}",
+            "checks": checks,
+        }
+
     checks = []
     if "json" in rules:
         actual = parse_json_value(model_output)
@@ -83,6 +94,34 @@ def score_deterministic(case, model_output):
         return {"pass": False, "detail": "no deterministic rules declared"}
     ok = all(passed for passed, _ in checks)
     return {"pass": ok, "detail": "; ".join(detail for _, detail in checks)}
+
+
+def score_deterministic_check(check, model_output):
+    check_id = check.get("id") or check.get("type") or "check"
+    check_type = check.get("type")
+    text = str(model_output)
+    ignore_case = check.get("ignore_case", True)
+    compared = text.lower() if ignore_case else text
+    if check_type in {"contains", "not_contains"}:
+        needle = str(check["text"])
+        needle = needle.lower() if ignore_case else needle
+        matched = needle in compared
+        passed = matched if check_type == "contains" else not matched
+    elif check_type in {"regex", "not_regex"}:
+        flags = re.I if ignore_case else 0
+        matched = re.search(check["pattern"], text, flags | re.S) is not None
+        passed = matched if check_type == "regex" else not matched
+    elif check_type == "max_chars":
+        passed = len(text) <= int(check["value"])
+    elif check_type == "json_fields":
+        try:
+            value = json.loads(text)
+        except json.JSONDecodeError:
+            value = None
+        passed = isinstance(value, dict) and all(field in value for field in check["fields"])
+    else:
+        raise ValueError(f"unknown deterministic check type: {check_type!r}")
+    return {"id": check_id, "type": check_type, "pass": passed}
 
 
 def score_llm_judge(case, model_output, scorer_config, judge_call=None):

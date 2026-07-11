@@ -1,5 +1,6 @@
 arena
 backends
+canary
 forge
 report
 scorers

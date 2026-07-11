@@ -1,0 +1,22 @@
+{
+  "name": "inference-canary-example",
+  "cases_path": "cases.jsonl",
+  "prompt_variants": [
+    {
+      "name": "default",
+      "template": "{input}"
+    }
+  ],
+  "scorer": {
+    "type": "deterministic"
+  },
+  "models": {
+    "codex": "gpt-5.5",
+    "cursor": "gpt-5.5-medium",
+    "anthropic": "claude-sonnet-4-6",
+    "openai": "gpt-5.5",
+    "google": "gemini-2.5-pro",
+    "openrouter": "openai/gpt-oss-120b",
+    "fireworks": "accounts/fireworks/models/qwen3-235b-a22b"
+  }
+}

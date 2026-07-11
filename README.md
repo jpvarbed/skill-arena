@@ -27,6 +27,26 @@ page from a saved run:
 uv run arena report --results out/results.json --html out/leaderboard.html
 ```
 
+## Watch for model drift
+
+`arena canary` runs a frozen workflow suite and compares it with the latest compatible run:
+
+```sh
+uv run arena canary \
+  --config examples/inference-canary/config.json \
+  --backends codex,cursor \
+  --runs-dir out/canary
+```
+
+Each timestamped run contains local `results.json`, raw model outputs, a leaderboard, and a concise
+`summary.md`. Lanes are labeled `baseline`, `new`, `still safe`, `drifted`, `recovered`, or
+`still failing`. Suite fingerprints prevent comparisons after prompts, cases, scoring rules, or
+injected skill text change.
+
+The [public example and seven-lane receipt](examples/inference-canary/) use sanitized workflow contracts. Keep private
+prompts in an external config and point `--config` at it; credentials remain in the environment or
+BWS and run history stays under the ignored `out/` directory.
+
 ## Forge a Skill
 
 `arena forge` generates blind SKILL.md variants, scores baseline/original/variants on the same
@@ -91,6 +111,7 @@ Secret values are never printed.
 | Backend | Adapter | Auth |
 | --- | --- | --- |
 | `codex` | `codex exec --skip-git-repo-check` | local Codex auth |
+| `cursor` | `cursor-agent --print --mode ask --sandbox enabled` | `CURSOR_API_KEY` |
 | `claude-cli` | `claude -p` | local Claude auth |
 | `anthropic` | Anthropic Messages API | `ANTHROPIC_API_KEY` |
 | `openai` | OpenAI chat completions | `OPENAI_API_KEY` |

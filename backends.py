@@ -44,6 +44,26 @@ def call_claude_cli(prompt, model):
     out = subprocess.run(args, capture_output=True, text=True, timeout=180)
     return out.stdout + "\n" + out.stderr
 
+
+def call_cursor(prompt, model):
+    args = [
+        "cursor-agent", "--print", "--output-format", "text", "--mode", "ask",
+        "--sandbox", "enabled",
+    ]
+    if model:
+        args.extend(["--model", model])
+    out = subprocess.run(
+        args,
+        input=prompt,
+        capture_output=True,
+        text=True,
+        timeout=180,
+        env=os.environ.copy(),
+    )
+    if out.returncode != 0:
+        raise RuntimeError((out.stderr or out.stdout or f"exit {out.returncode}").strip())
+    return out.stdout.strip()
+
 def _http(url, key_header, payload):
     req = urllib.request.Request(url, data=json.dumps(payload).encode(),
                                  headers={"content-type": "application/json", **key_header})
@@ -98,7 +118,7 @@ def call_google(prompt, model):
     return "".join(part.get("text", "") for part in parts) or json.dumps(d)
 
 
-BACKENDS = {"codex": call_codex, "claude-cli": call_claude_cli, "anthropic": call_anthropic,
+BACKENDS = {"codex": call_codex, "cursor": call_cursor, "claude-cli": call_claude_cli, "anthropic": call_anthropic,
             "openrouter": call_openrouter, "fireworks": call_fireworks,
             "openai": call_openai, "google": call_google,
             # model aliases: same provider fn, distinct leaderboard column; the model
@@ -108,6 +128,7 @@ BACKENDS = {"codex": call_codex, "claude-cli": call_claude_cli, "anthropic": cal
 
 
 _BACKEND_ENV = {
+    "cursor": "CURSOR_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
     "openrouter": "OPENROUTER_API_KEY",
     "fireworks": "FIREWORKS_API_KEY",
@@ -116,6 +137,7 @@ _BACKEND_ENV = {
     "opus": "ANTHROPIC_API_KEY", "sonnet": "ANTHROPIC_API_KEY", "haiku": "ANTHROPIC_API_KEY",
     "gemini-pro": "GOOGLE_API_KEY", "gemini-flash": "GOOGLE_API_KEY",
 }
+_BWS_SECRET_ALIASES = {"CURSOR_API_KEY": ["cursor_api_key"]}
 _BWS_LOADED = False
 def is_error_sentinel(text):
     return isinstance(text, str) and text.startswith(ERROR_SENTINEL_PREFIX)
@@ -160,11 +182,19 @@ def _load_bws_secrets():
         raise RuntimeError("bws secret list failed")
     data = json.loads(out.stdout, strict=False)
     wanted = set(_BACKEND_ENV.values())
+    secrets = {}
     for item in data if isinstance(data, list) else []:
         key = item.get("key") or item.get("name")
         value = item.get("value")
-        if key in wanted and value and not os.environ.get(key):
-            os.environ[key] = value
+        if key and value:
+            secrets[key] = value
+    for env_name in wanted:
+        if os.environ.get(env_name):
+            continue
+        for secret_name in [env_name, *_BWS_SECRET_ALIASES.get(env_name, [])]:
+            if secrets.get(secret_name):
+                os.environ[env_name] = secrets[secret_name]
+                break
     _BWS_LOADED = True
 
 

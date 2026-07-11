@@ -1,6 +1,7 @@
 README.md
 arena.py
 backends.py
+canary.py
 forge.py
 pyproject.toml
 report.py
@@ -11,6 +12,8 @@ skill_arena.egg-info/dependency_links.txt
 skill_arena.egg-info/entry_points.txt
 skill_arena.egg-info/top_level.txt
 tests/test_backends.py
+tests/test_canary.py
+tests/test_csv_analysis.py
 tests/test_forge.py
 tests/test_loader.py
 tests/test_scorers.py

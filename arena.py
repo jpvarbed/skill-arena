@@ -63,6 +63,12 @@ def load_skill(name):
     return Skill(name=name, directory=directory, config=json.loads(config_path.read_text()))
 
 
+def load_skill_from_config(config_path):
+    config_path = Path(config_path).expanduser().resolve()
+    config = json.loads(config_path.read_text())
+    return Skill(name=config.get("name") or config_path.parent.name, directory=config_path.parent, config=config)
+
+
 def load_cases(skill):
     path = resolve_cases_path(skill)
     cases = []
@@ -90,18 +96,23 @@ def list_skills():
 
 
 def run(skills, backend_names, out_dir=OUT_DIR, dry_run=False):
+    return run_loaded_skills([load_skill(name) for name in skills], backend_names, out_dir, dry_run=dry_run)
+
+
+def run_loaded_skills(skills, backend_names, out_dir=OUT_DIR, dry_run=False, metadata=None, include_outputs=False):
     results = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "dry_run": dry_run,
         "skills": {},
     }
-    for skill_name in skills:
-        skill = load_skill(skill_name)
+    if metadata:
+        results.update(metadata)
+    for skill in skills:
         cases = load_cases(skill)
         cells = []
         for variant in skill.config.get("prompt_variants", []):
             for backend in backend_names:
-                cells.append(run_cell(skill, cases, variant, backend, dry_run=dry_run))
+                cells.append(run_cell(skill, cases, variant, backend, dry_run=dry_run, include_outputs=include_outputs))
         results["skills"][skill.name] = {
             "cases_path": skill.config.get("cases_path", "cases.jsonl"),
             "scorer": skill.config.get("scorer", {}),
@@ -122,12 +133,12 @@ def run(skills, backend_names, out_dir=OUT_DIR, dry_run=False):
     return results
 
 
-def run_cell(skill, cases, variant, backend, dry_run=False):
+def run_cell(skill, cases, variant, backend, dry_run=False, include_outputs=False):
     case_results = []
     total_latency = 0.0
+    model = skill.config.get("models", {}).get(backend)
     for case in cases:
         prompt = render_prompt(skill, case, variant)
-        model = skill.config.get("models", {}).get(backend)
         started = time.monotonic()
         if dry_run:
             output = dry_run_output(skill, case)
@@ -142,17 +153,21 @@ def run_cell(skill, cases, variant, backend, dry_run=False):
         except Exception as exc:
             error = True
             verdict = {"pass": False, "detail": f"scorer error: {exc}"}
-        case_results.append({
+        case_result = {
             "id": case.get("id"),
             "pass": bool(verdict["pass"]),
             "detail": verdict["detail"],
             "error": error,
             "latency_s": round(latency, 3),
-        })
+        }
+        if include_outputs:
+            case_result["checks"] = verdict.get("checks", [])
+            case_result["output"] = output
+        case_results.append(case_result)
     n = len(case_results)
     passed = sum(1 for result in case_results if result["pass"])
     errors = sum(1 for result in case_results if result["error"])
-    return {
+    cell_result = {
         "backend": backend,
         "prompt_variant": variant.get("name", "default"),
         "pass_rate": passed / n if n else None,
@@ -163,6 +178,9 @@ def run_cell(skill, cases, variant, backend, dry_run=False):
         "errors": errors,
         "cases": case_results,
     }
+    if include_outputs:
+        cell_result["model"] = model
+    return cell_result
 
 
 def render_prompt(skill, case, variant):
@@ -253,6 +271,16 @@ def build_parser():
     )
     forge_parser.add_argument("--results", default=str(OUT_DIR / "forge-results.json"))
     forge_parser.add_argument("--out-dir", default=str(OUT_DIR))
+
+    canary_parser = sub.add_parser("canary")
+    canary_target = canary_parser.add_mutually_exclusive_group(required=True)
+    canary_target.add_argument("--skill")
+    canary_target.add_argument("--config")
+    canary_parser.add_argument("--backends", default=",".join(DEFAULT_BACKENDS))
+    canary_parser.add_argument("--runs-dir", default=str(OUT_DIR / "canary"))
+    canary_parser.add_argument("--run-id", default="")
+    canary_parser.add_argument("--baseline", default="")
+    canary_parser.add_argument("--dry-run", action="store_true")
     return parser
 
 
@@ -271,6 +299,19 @@ def main(argv=None):
         from forge import cli as forge_cli
 
         return forge_cli(args)
+    if args.command == "canary":
+        from canary import run_canary
+
+        skill = load_skill_from_config(args.config) if args.config else load_skill(args.skill)
+        run_canary(
+            skill,
+            parse_backends(args.backends),
+            runs_dir=Path(args.runs_dir),
+            run_id=args.run_id,
+            baseline=Path(args.baseline) if args.baseline else None,
+            dry_run=args.dry_run,
+        )
+        return 0
     return 1
 
 

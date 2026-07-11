@@ -53,6 +53,47 @@ def test_deterministic_supports_exact_regex_and_keyword_rules():
     assert score_deterministic({"expect": {"exact": "done"}}, "done")["pass"] is True
     assert score_deterministic({"expect": {"regex": r"task-\d+"}}, "task-42")["pass"] is True
     assert score_deterministic({"expect": {"keyword": "ready"}}, "system ready")["pass"] is True
+    assert score_deterministic({"expect": {"keywords": ["system", "ready"]}}, "system ready")["pass"] is True
+
+
+def test_deterministic_composite_checks_name_exact_failures():
+    case = {
+        "expect": {
+            "checks": [
+                {"id": "has-safe", "type": "contains", "text": "safe"},
+                {"id": "no-secret", "type": "not_contains", "text": "secret"},
+                {"id": "ready-status", "type": "regex", "pattern": r'"status"\s*:\s*"ready"'},
+                {"id": "no-error", "type": "not_regex", "pattern": "error"},
+                {"id": "short", "type": "max_chars", "value": 80},
+                {"id": "json-shape", "type": "json_fields", "fields": ["status", "message"]},
+            ]
+        }
+    }
+
+    passing = score_deterministic(case, '{"status":"ready","message":"safe contract"}')
+    failing = score_deterministic(case, '{"status":"error","secret":"x"}')
+
+    assert passing["pass"] is True
+    assert [check["id"] for check in failing["checks"] if not check["pass"]] == [
+        "has-safe", "no-secret", "ready-status", "no-error", "json-shape"
+    ]
+    prose_wrapped = score_deterministic(
+        {"expect": {"checks": [{"id": "json-shape", "type": "json_fields", "fields": ["status"]}]}},
+        'Here is the result: {"status":"ready"}',
+    )
+    assert prose_wrapped["pass"] is False
+    extra_fields = score_deterministic(
+        {"expect": {"checks": [{"id": "json-shape", "type": "json_fields", "fields": ["status"]}]}},
+        '{"status":"ready","extra":"allowed"}',
+    )
+    assert extra_fields["pass"] is True
+
+
+def test_deterministic_rejects_mixed_composite_and_legacy_rules():
+    case = {"expect": {"checks": [{"id": "has-ok", "type": "contains", "text": "ok"}], "exact": "ok"}}
+
+    with pytest.raises(ValueError, match="mix"):
+        score_deterministic(case, "ok")
 
 
 def test_llm_judge_uses_injected_judge_backend_and_parses_json_verdict():
