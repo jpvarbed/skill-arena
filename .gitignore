@@ -1,4 +1,7 @@
 out/
+!traj/out/
+traj/out/*
+!traj/out/tier2-deviations.md
 out/usage.json
 __pycache__/
 *.pyc
