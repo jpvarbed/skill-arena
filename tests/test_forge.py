@@ -239,7 +239,7 @@ def test_score_contestant_majority_vote_denoises_trials():
 
 
 def test_score_contestant_even_trials_tie_fails():
-    # Council finding on HAR-44: `pass_count * 2 >= trials` let an even-k tie count as a
+    # Council finding on the k-trial diff: `pass_count * 2 >= trials` let an even-k tie count as a
     # pass (trials=2, 1/2 -> pass), inflating denoised scores. STRICT majority: tie = fail.
     from forge import score_contestant
 
@@ -257,7 +257,7 @@ def test_score_contestant_even_trials_tie_fails():
 
 
 def test_run_forge_plumbs_max_workers_to_scoring(tmp_path):
-    # Council finding on HAR-44: the forge CLI path stayed serial — run_forge never
+    # Council finding on the k-trial diff: the forge CLI path stayed serial — run_forge never
     # forwarded max_workers. Assert the plumbing end-to-end via a spying score path.
     import forge
 
@@ -291,7 +291,7 @@ def test_run_forge_plumbs_max_workers_to_scoring(tmp_path):
 
 
 def test_score_contestant_parallel_matches_serial():
-    # HAR-44: measure scoring is embarrassingly parallel (case x trial calls are independent).
+    # Measure scoring is embarrassingly parallel (case x trial calls are independent).
     # max_workers>1 must give BYTE-IDENTICAL correctness results to serial and PRESERVE case order
     # (downstream measure.py pairs baseline vs candidate by position — a reorder would mis-pair).
     import threading
