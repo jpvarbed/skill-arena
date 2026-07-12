@@ -203,7 +203,7 @@ def build_agent_command(cwd: Path, prompt_file: Path, agent_cmd: str | None) -> 
             "python": shlex.quote(sys.executable),
         }
         return agent_cmd.format(**values), True, None
-    return ["codex", "exec", "--sandbox", "workspace-write", "-C", str(cwd.resolve()), "--", "-"], False, prompt_file
+    return ["codex", "exec", "--skip-git-repo-check", "--sandbox", "workspace-write", "-C", str(cwd.resolve()), "--", "-"], False, prompt_file
 
 
 def run_agent(cwd: Path, prompt_file: Path, agent_cmd: str | None, timeout: int) -> AgentResult:
