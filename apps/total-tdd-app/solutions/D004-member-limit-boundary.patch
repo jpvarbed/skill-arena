@@ -1,0 +1,11 @@
+--- shelfd/members.py
++++ shelfd/members.py
+@@ -54,7 +54,7 @@ def ensure_can_checkout(state: LibraryState, member_id: str) -> None:
+     member = get_member(state, member_id)
+     if not member.active:
+         raise ValueError("inactive members cannot checkout books")
+-    if active_loan_count(state, member_id) > member.max_loans:
++    if active_loan_count(state, member_id) >= member.max_loans:
+         raise ValueError("member loan limit reached")
+ 
+ 

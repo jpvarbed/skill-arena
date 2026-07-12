@@ -1,0 +1,18 @@
+{
+  "name": "writing-hooks",
+  "skill_path": "SKILL.md",
+  "cases_path": "cases.jsonl",
+  "prompt_variants": [
+    {
+      "name": "with-skill",
+      "inject_skill": true,
+      "template": "Detect which writing-hook gotchas appear in the post. Return ONLY a JSON array of ids from this closed vocabulary: throat-clear, business-speak, claimed-emotion, manufactured-drama, markdown-in-tweets, em-dash, real-actual, manufactured-quotability, parataxis, not-just-x, filler, abstract-over-number. Return [] if the post is clean. Do not explain.\n\nPOST:\n{draft}\n"
+    }
+  ],
+  "scorer": {
+    "type": "expect_set"
+  },
+  "models": {
+    "codex": "gpt-5.5"
+  }
+}

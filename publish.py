@@ -18,7 +18,56 @@ PUBLISHERS = [
             "cases": "~/dev/highsignal/tests/cases.jsonl",
             "forge": "~/dev/skill-arena/out/forge-results.json",
         },
-    }
+    },
+    {
+        "skill": "instruction-conflicts",
+        "category": "meta",
+        "canonical_repo": "https://github.com/jpvarbed/skill-arena",
+        "sources": {
+            "arena_results": "out/live-instruction-conflicts/results.json",
+            "cases": "skills/instruction-conflicts/cases.jsonl",
+        },
+    },
+    {
+        "skill": "caveman",
+        "category": "productivity",
+        "canonical_repo": "https://github.com/jpvarbed/skill-arena",
+        "sources": {
+            "arena_results": "out/live-caveman/results.json",
+            "cases": "skills/caveman/cases.jsonl",
+        },
+    },
+    {
+        "skill": "writing-hooks",
+        "category": "writing",
+        "canonical_repo": "https://github.com/jpvarbed/skill-arena",
+        "sources": {
+            "arena_results": "out/live-writing-hooks/results.json",
+            "cases": "skills/writing-hooks/cases.jsonl",
+        },
+    },
+    {
+        "skill": "goal-spec",
+        "category": "meta",
+        "canonical_repo": "https://github.com/jpvarbed/skill-arena",
+        "sources": {
+            "arena_results": "out/live-goal-spec-results.json",
+            "cases": "skills/goal-spec/cases.jsonl",
+        },
+    },
+    {
+        "skill": "total-tdd",
+        "category": "engineering",
+        "canonical_repo": "https://github.com/jpvarbed/skill-arena",
+        "sources": {
+            "arena_results": "apps/total-tdd-app/out/results.json",
+        },
+    },
+    {"skill": "apply-paper", "category": "meta", "canonical_repo": "https://github.com/jpvarbed/skill-arena", "sources": {}},
+    {"skill": "determinize-refactor", "category": "meta", "canonical_repo": "https://github.com/jpvarbed/skill-arena", "sources": {}},
+    {"skill": "adversarial-review", "category": "review", "canonical_repo": "https://github.com/jpvarbed/skill-arena", "sources": {}},
+    {"skill": "gtm-diligence", "category": "review", "canonical_repo": "https://github.com/jpvarbed/skill-arena", "sources": {}},
+    {"skill": "visual-critique", "category": "review", "canonical_repo": "https://github.com/jpvarbed/skill-arena", "sources": {}},
 ]
 
 
@@ -82,7 +131,7 @@ def run_verify(skills_repo, publishers=None, stream=None, report_path=None):
         readme_path = skills_repo / "README.md"
         readme_text = readme_path.read_text()
         validate_readme_markers(readme_text)
-        surfaces = build_surfaces_from_rendered(skills_repo)
+        surfaces = build_surfaces(skills_repo, publishers or PUBLISHERS)
         expected_writes = plan_writes(skills_repo, surfaces, readme_text)
         mismatches = []
         for rel_path, expected in expected_writes.items():
@@ -140,21 +189,26 @@ def build_publisher_surface(entry):
     canonical = entry["canonical_repo"]
     sources = entry.get("sources", {})
     notes = []
-    skill_text = read_optional(sources.get("skill_file"))
-    if skill_text is None:
+    skill_text = read_optional(sources.get("skill_file")) if "skill_file" in sources else None
+    if "skill_file" in sources and skill_text is None:
         notes.append("skill source missing; SKILL.md copy skipped.")
-    else:
+    elif skill_text is not None:
         skill_text = f"<!-- canonical: {canonical}; curated copy -->\n" + skill_text
 
-    results_text = read_optional(sources.get("results"))
+    results_text = read_optional(sources.get("results")) if "results" in sources else None
     cases_count = count_jsonl(sources.get("cases"))
-    if cases_count is None:
+    if "cases" in sources and cases_count is None:
         notes.append("cases source missing; case count skipped.")
 
     detection = None
-    if results_text is None:
+    arena_results = parse_arena_results_source(sources.get("arena_results"), skill.name, cases_count, notes)
+    if arena_results:
+        detection = arena_results
+    elif "arena_results" in sources:
+        pass
+    elif "results" in sources and results_text is None:
         notes.append("detection results source missing; skipped.")
-    else:
+    elif results_text is not None:
         detection_scores = parse_detection_results(results_text)
         if detection_scores:
             detection = {
@@ -202,9 +256,11 @@ def build_publisher_surface(entry):
     )
 
 
-def build_surfaces_from_rendered(skills_repo):
+def build_surfaces_from_rendered(skills_repo, publishers=None):
+    registered = {SkillRef(entry["category"], entry["skill"]): None for entry in publishers or []}
+    discovered = {skill: None for skill in discover_skills(skills_repo)}
     surfaces = []
-    for skill in discover_skills(skills_repo):
+    for skill in sorted({**registered, **discovered}):
         data_path = Path(skills_repo) / skill.rel_dir / "eval" / "data.json"
         if data_path.exists():
             data = json.loads(data_path.read_text())
@@ -485,7 +541,7 @@ def find_cell(cells, contestant, backend):
 def read_optional(path_value):
     if not path_value:
         return None
-    path = Path(path_value).expanduser()
+    path = resolve_source_path(path_value)
     if not path.exists():
         return None
     return path.read_text()
@@ -494,7 +550,7 @@ def read_optional(path_value):
 def count_jsonl(path_value):
     if not path_value:
         return None
-    path = Path(path_value).expanduser()
+    path = resolve_source_path(path_value)
     if not path.exists():
         return None
     count = 0
@@ -503,6 +559,64 @@ def count_jsonl(path_value):
             if line.strip():
                 count += 1
     return count
+
+
+def resolve_source_path(path_value):
+    path = Path(path_value).expanduser()
+    if path.is_absolute():
+        return path
+    return Path(__file__).resolve().parent / path
+
+
+def parse_arena_results_source(path_value, skill_name, cases_count, notes):
+    if not path_value:
+        return None
+    path = resolve_source_path(path_value)
+    if not path.exists():
+        notes.append("arena results source missing; skipped.")
+        return None
+    try:
+        results = json.loads(path.read_text())
+    except json.JSONDecodeError:
+        notes.append("arena results unparseable; skipped.")
+        return None
+    if results.get("dry_run"):
+        notes.append("arena results are dry-run stubs; skipped.")
+        return None
+    skill_result = results.get("skills", {}).get(skill_name)
+    if not skill_result:
+        notes.append("arena results missing this skill; skipped.")
+        return None
+    scores = []
+    for cell in skill_result.get("cells", []):
+        total = int(cell.get("n") or 0)
+        passes = int(cell.get("passes") or 0)
+        rate = f"{(passes / total) * 100:.0f}%" if total else "n/a"
+        label = cell.get("backend", "unknown")
+        variant = cell.get("prompt_variant")
+        if variant and variant != "default":
+            label = f"{label} / {variant}"
+        scores.append({
+            "model": label,
+            "passes": passes,
+            "total": total,
+            "rate": rate,
+            "false_positives": count_false_positives(cell),
+        })
+    if not scores:
+        notes.append("arena results had no scored cells; skipped.")
+        return None
+    n = cases_count if cases_count is not None else max((score["total"] for score in scores), default=None)
+    return {
+        "benchmark": f"{skill_name} arena eval",
+        "case_count": n,
+        "trials": 1,
+        "scores": scores,
+    }
+
+
+def count_false_positives(cell):
+    return sum(1 for case in cell.get("cases", []) if "false-positive" in str(case.get("detail", "")))
 
 
 def format_score_cell(passes, total, score):
@@ -550,25 +664,41 @@ def _write_verification_report(report_path, skills_repo, surfaces, expected_writ
             return subprocess.run(["git", "-C", str(skills_repo), *args], capture_output=True, text=True).stdout.strip()
         except OSError:
             return "unknown"
+    if _git("rev-parse", "--is-inside-work-tree") != "true":
+        raise SystemExit("verification report requires the skills repo to be a git repository")
+    porcelain = _git("status", "--porcelain")
+    if porcelain:
+        raise SystemExit(
+            "verification report requires a CLEAN skills-repo worktree (verify AFTER committing), "
+            "so the record binds to an immutable commit. Dirty files:\n" + porcelain
+        )
     lines = [
         "# Publish verification record",
         "",
         "Every rendered file below was re-derived from its evidence sources and matched byte-for-byte.",
         f"Repo state at verification: branch `{_git('branch', '--show-current') or 'unknown'}`, "
-        f"commit `{_git('rev-parse', '--short', 'HEAD') or 'unknown'}` (uncommitted changes may follow this record).",
+        f"commit `{_git('rev-parse', 'HEAD') or 'unknown'}`, worktree clean (`git status --porcelain` empty).",
         "",
-        "| Rendered file | Matches evidence | sha256 (12) |",
+        "| Rendered file | Matches evidence | sha256 |",
         "|---|---|---|",
     ]
     for rel_path in sorted(expected_writes):
-        digest = hashlib.sha256(expected_writes[rel_path].encode()).hexdigest()[:12]
+        digest = hashlib.sha256(expected_writes[rel_path].encode()).hexdigest()
         lines.append(f"| {rel_path} | yes | `{digest}` |")
     lines += ["", "## Evidence sources per measured skill", ""]
     for surface in surfaces:
         if surface.status == "measured":
             ref = surface.skill
-            lines.append(f"- **{ref.name}**: evidence committed under `{ref.category}/{ref.name}/eval/` "
-                         f"(see the PERF.md generation stamp for exact files).")
+            reg = next((r for r in PUBLISHERS if r.get("skill") == ref.name), {})
+            src_bits = []
+            for label, path in sorted((reg.get("sources") or {}).items()):
+                try:
+                    from pathlib import Path as _P
+                    data = _P(path).expanduser().read_bytes() if _P(path).expanduser().is_absolute() else (_P(__file__).parent / path).read_bytes()
+                    src_bits.append(f"{label}=`{path}` sha256 `{hashlib.sha256(data).hexdigest()}`")
+                except OSError:
+                    src_bits.append(f"{label}=`{path}` (unreadable at verify time)")
+            lines.append(f"- **{ref.name}**: " + ("; ".join(src_bits) if src_bits else "no sources"))
     lines += ["", "Hygiene scan: clean (local paths, tracker-id shapes, credential-length literals).",
               "Generated by `arena publish --verify --report`; regenerate rather than hand-edit.", ""]
     report_path.parent.mkdir(parents=True, exist_ok=True)

@@ -142,17 +142,21 @@ def run_cell(skill, cases, variant, backend, dry_run=False):
         except Exception as exc:
             error = True
             verdict = {"pass": False, "detail": f"scorer error: {exc}"}
-        case_results.append({
+        result = {
             "id": case.get("id"),
             "pass": bool(verdict["pass"]),
             "detail": verdict["detail"],
             "error": error,
             "latency_s": round(latency, 3),
-        })
+        }
+        if "score" in verdict:
+            result["score"] = verdict["score"]
+        case_results.append(result)
     n = len(case_results)
     passed = sum(1 for result in case_results if result["pass"])
     errors = sum(1 for result in case_results if result["error"])
-    return {
+    scored = [result["score"] for result in case_results if "score" in result]
+    cell = {
         "backend": backend,
         "prompt_variant": variant.get("name", "default"),
         "pass_rate": passed / n if n else None,
@@ -163,6 +167,9 @@ def run_cell(skill, cases, variant, backend, dry_run=False):
         "errors": errors,
         "cases": case_results,
     }
+    if scored:
+        cell["score"] = sum(scored) / len(scored)
+    return cell
 
 
 def render_prompt(skill, case, variant):
@@ -207,6 +214,21 @@ def dry_run_output(skill, case):
             return str(expect["exact"])
         if isinstance(expect, dict) and "keyword" in expect:
             return str(expect["keyword"])
+    if scorer_type == "compression_fidelity":
+        return case.get("reference_compression") or case.get("input", "")
+    if scorer_type == "brief_lint":
+        return case.get("reference_brief") or (
+            "GOAL: Produce the requested artifact and verify it.\n"
+            "CONTEXT: tools: local repo; refs: prompt; output: requested path; fixtures: provided cases.\n"
+            "EFFORT: medium\n"
+            "VERIFY: beat the 80% baseline on the fixture set.\n"
+            "RESOLVED (do not reopen): Use the requested stack.\n"
+            "RUBRIC (binary):\n"
+            "  - [ ] Artifact exists at the requested path.\n"
+            "  - [ ] Verification command exits 0.\n"
+            "  - [ ] Results are reproducible from one command.\n"
+            "DONE = all rubric checks PASS.\n"
+        )
     return "{}"
 
 

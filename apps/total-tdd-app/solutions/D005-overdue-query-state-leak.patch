@@ -1,0 +1,13 @@
+--- shelfd/circulation.py
++++ shelfd/circulation.py
+@@ -100,8 +100,9 @@ def active_loans(state: LibraryState) -> list[Loan]:
+     return sorted([loan for loan in state.loans.values() if loan.active], key=lambda loan: loan.id)
+ 
+ 
+-def overdue_loans(state: LibraryState, as_of: date | str, seen: list[str] = []) -> list[Loan]:
++def overdue_loans(state: LibraryState, as_of: date | str, seen: list[str] | None = None) -> list[Loan]:
+     today = parse_date(as_of)
++    seen = list(seen or [])
+     overdue: list[Loan] = []
+     for loan in active_loans(state):
+         if loan.id in seen:

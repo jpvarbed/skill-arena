@@ -1,0 +1,13 @@
+--- shelfd/circulation.py
++++ shelfd/circulation.py
+@@ -72,6 +72,9 @@ def renew_loan(
+         raise ValueError("returned loans cannot be renewed")
+     renewed = parse_date(renewed_on)
+     if renewed > loan.due:
+         raise ValueError("overdue loans cannot be renewed")
++    book = get_book(state, loan.book_id)
++    if book.reservations:
++        raise ValueError("cannot renew loan while a reservation is waiting")
+     loan.due = loan.due + timedelta(days=int(days))
+     loan.renewals += 1
+     audit.record(state, "loan.renew", book_id=loan.book_id, member_id=loan.member_id, detail=loan.id)

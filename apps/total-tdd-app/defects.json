@@ -1,0 +1,137 @@
+{
+  "app": "shelfd",
+  "schema_version": 1,
+  "resolved_threshold": {
+    "fixed_defects": 6,
+    "regressions": 0
+  },
+  "defects": [
+    {
+      "id": "D001",
+      "category": "straightforward-single-function",
+      "summary": "Author search is case-sensitive even though text search and genre filters are normalized.",
+      "files": ["shelfd/catalog.py"],
+      "match_rules": [
+        {"keywords": ["author", "case"]},
+        {"keywords": ["search", "le guin"], "files": ["catalog.py"]}
+      ],
+      "fail_to_pass": ["tests/test_catalog.py::test_author_filter_is_case_insensitive"],
+      "solution_patch": "solutions/D001-author-filter-case.patch"
+    },
+    {
+      "id": "D002",
+      "category": "straightforward-single-function",
+      "summary": "Late fees forgive the first late day, undercharging all overdue returns.",
+      "files": ["shelfd/fees.py"],
+      "match_rules": [
+        {"keywords": ["late", "fee", "day"], "files": ["shelfd/fees.py"]},
+        {"keywords": ["75", "50"], "files": ["fees.py"]}
+      ],
+      "fail_to_pass": ["tests/test_circulation.py::test_late_fee_charges_each_late_day"],
+      "solution_patch": "solutions/D002-late-fee-all-days.patch"
+    },
+    {
+      "id": "D003",
+      "category": "medium-module-contract",
+      "summary": "The API accepts ISO due dates but circulation stores the raw string before comparing it with dates.",
+      "files": ["shelfd/api.py", "shelfd/circulation.py", "shelfd/models.py"],
+      "match_rules": [
+        {"keywords": ["due", "iso", "date"], "files": ["shelfd/circulation.py"]},
+        {"keywords": ["api", "checkout", "string"], "files": ["circulation.py"]}
+      ],
+      "fail_to_pass": ["tests/test_circulation.py::test_checkout_accepts_iso_due_date_through_api"],
+      "solution_patch": "solutions/D003-api-due-date-contract.patch"
+    },
+    {
+      "id": "D004",
+      "category": "medium-boundary-condition",
+      "summary": "Member checkout limits use a greater-than check, allowing one loan beyond the configured limit.",
+      "files": ["shelfd/members.py", "shelfd/circulation.py"],
+      "match_rules": [
+        {"keywords": ["member", "limit", "fourth"], "files": ["shelfd/members.py"]},
+        {"keywords": ["max_loans", "boundary"], "files": ["members.py"]}
+      ],
+      "fail_to_pass": ["tests/test_members.py::test_member_limit_blocks_fourth_checkout"],
+      "solution_patch": "solutions/D004-member-limit-boundary.patch"
+    },
+    {
+      "id": "D005",
+      "category": "medium-state-leak",
+      "summary": "Overdue queries keep a mutable seen-list across calls, so repeated reads lose active loans.",
+      "files": ["shelfd/circulation.py"],
+      "match_rules": [
+        {"keywords": ["overdue", "repeatable", "state"], "files": ["shelfd/circulation.py"]},
+        {"keywords": ["mutable", "seen"], "files": ["circulation.py"]}
+      ],
+      "fail_to_pass": ["tests/test_circulation.py::test_overdue_loans_are_repeatable_queries"],
+      "solution_patch": "solutions/D005-overdue-query-state-leak.patch"
+    },
+    {
+      "id": "D006",
+      "category": "subtle-cross-feature",
+      "summary": "Renewal ignores a waiting reservation, letting a borrower extend a reserved book and avoid late-fee pressure.",
+      "files": ["shelfd/circulation.py", "shelfd/fees.py"],
+      "match_rules": [
+        {"keywords": ["renew", "reservation"], "files": ["shelfd/circulation.py"]},
+        {"keywords": ["reserved", "late", "fee"], "files": ["circulation.py"]}
+      ],
+      "fail_to_pass": ["tests/test_circulation.py::test_reserved_book_cannot_be_renewed_to_avoid_late_fee"],
+      "solution_patch": "solutions/D006-reservation-renewal.patch"
+    },
+    {
+      "id": "D007",
+      "category": "subtle-cross-feature",
+      "summary": "Loan CSV import creates active loans directly and bypasses the member-limit invariant used by checkout.",
+      "files": ["shelfd/io.py", "shelfd/members.py", "shelfd/circulation.py"],
+      "match_rules": [
+        {"keywords": ["import", "loan", "limit"], "files": ["shelfd/io.py"]},
+        {"keywords": ["csv", "member", "max_loans"], "files": ["io.py"]}
+      ],
+      "fail_to_pass": ["tests/test_io.py::test_import_loans_enforces_member_limits"],
+      "solution_patch": "solutions/D007-import-loan-member-limit.patch"
+    },
+    {
+      "id": "D008",
+      "category": "subtle-cross-feature",
+      "summary": "Audit logging deduplicates same-day book/member operations, dropping checkout-return interleavings.",
+      "files": ["shelfd/audit.py", "shelfd/circulation.py"],
+      "match_rules": [
+        {"keywords": ["audit", "checkout", "return"], "files": ["shelfd/audit.py"]},
+        {"keywords": ["interleaving", "same", "member"], "files": ["audit.py"]}
+      ],
+      "fail_to_pass": ["tests/test_audit_cli.py::test_audit_keeps_checkout_and_return_events_for_same_book_member"],
+      "solution_patch": "solutions/D008-audit-interleaving.patch"
+    }
+  ],
+  "hashes": {
+    "files": {
+      "README.md": "1700f7d841160921486cfd601954a1635c2b3e28809a5877c6d927f836638ce0",
+      "shelfd/__init__.py": "32595660d09548b191603b894b2bf7ac95ede716629690ee768b98184cb91654",
+      "shelfd/api.py": "842e6c5c051df75590fed86f82d263427d88241ea737089fe6311e07a69bac28",
+      "shelfd/audit.py": "eb4b78d6e6d96c2faa9007a958dbf5bf65af219051588e17cd52202901f69511",
+      "shelfd/catalog.py": "5ccad8c8b40e486fd4500fb0f8c73492e7f031a3366b2ebc663c3eeb8c0f2eb7",
+      "shelfd/circulation.py": "fc71ea7d59dccd7668a804a40cc6c8561d2a2df2dc0403d8d6a99d7571ce3580",
+      "shelfd/cli.py": "1af59b2aaba5d119a904bfdda850fad19315a5e0f1d146ded49e7ab869fc268b",
+      "shelfd/fees.py": "ac67bfcc11827de2e5144c630c8ed58d2000e44cdd39626314197c8e2cbc91b0",
+      "shelfd/io.py": "ea37f3b1f6a0b26fef819ea59984fdd4f2fdae3291cbb4020b54f77eeaac5043",
+      "shelfd/members.py": "4a60fab5ad13b0dfc177b03566e2e9df1670a163d43c7b5cdaf14b327182eb87",
+      "shelfd/models.py": "902bd1f4105120902fa3c224e9b2df9083d5d68ae15ef1bc14e61ac7da00b6bf",
+      "shelfd/storage.py": "3ffb7821a2b716c539c5eafa7cc1d0b164b5d6917735bf5c6e8c506f25346190",
+      "tests/conftest.py": "6fc5ec91ed457c6b09f785f2b0eea93a7ffafbd0b5ac4e28b06f289bdf8fcf4e",
+      "tests/test_audit_cli.py": "25424688b6e3cf08edd8115c54ec72cdeaa06353b46b985f0747950ef15a2479",
+      "tests/test_catalog.py": "80f515bde8ad96f8387bb535b46d98650b6abb6851a8c0c1f266cf17e16cf6fb",
+      "tests/test_circulation.py": "148774b42a31e7631674ecc7a57110e0311abe000bbe5e6e3613d85130fc77b1",
+      "tests/test_io.py": "b08ce7f22602e0db047c6c0c4ee5743d67c4969eb52e85cf11b6aaeba07b58ec",
+      "tests/test_members.py": "43b347bb2208fa7388086d68a4030e0fea7ebd25375f9f2c86f3142f987964b2",
+      "tests/test_reservations.py": "0a5c13b35ec40478af3925d505f73a2cba9703df7f44f1a5a05131071177d060",
+      "solutions/D001-author-filter-case.patch": "92f35edb10fbf1a0bebc4f450184bbf89c9a8f144cb6c9c9cff858112c987eeb",
+      "solutions/D002-late-fee-all-days.patch": "c1b404e377a783dd62afcb91e0e26631a28f8aeee0a6bbd0a3bbb8e14eec896c",
+      "solutions/D003-api-due-date-contract.patch": "8518c79b678519b49fd6c23aca9a5ae0d10107a207153f8fa8b50f7e886a51df",
+      "solutions/D004-member-limit-boundary.patch": "b94338aeba4debdb643e06399d8ca356efe56e99dc440834e884e9e9deda4d9b",
+      "solutions/D005-overdue-query-state-leak.patch": "3d7dca3f1e65cc3bf4582b6d279268272c68f682b410da61e87cd2d3ab37d309",
+      "solutions/D006-reservation-renewal.patch": "346b32d5d1cf1ff37d43305f4c6815306276d04b27f3d3a0979e7ece3a25c8c6",
+      "solutions/D007-import-loan-member-limit.patch": "4e8e07f6df3ed27d72e8b0ba581226d3141e7f5001df007011ce26816ebdb66b",
+      "solutions/D008-audit-interleaving.patch": "f7ebb291f636ef1ec1ccb740812f6429c8ba8548d96e8697d2de275f869e1a40"
+    }
+  }
+}
