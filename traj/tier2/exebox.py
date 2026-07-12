@@ -98,6 +98,17 @@ class ExeBoxClient:
         )
 
     def write_text(self, name, remote_path, text):
+        if not text:
+            # `cat > f` with empty stdin hangs until timeout on some ssh paths — truncate instead
+            proc = self.runner(
+                _ssh_args(name, f": > {remote_path}"),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if proc.returncode != 0:
+                raise RuntimeError(f"failed to write {remote_path}: {proc.stderr}")
+            return proc
         proc = self.runner(
             _ssh_args(name, f"cat > {remote_path}"),
             input=text,

@@ -8,18 +8,31 @@ import pytest
 from traj.tier2 import run_tier2
 
 
-def test_head_mismatch_refuses_before_agent_runs():
+def test_wrong_image_refuses_before_agent_runs():
     calls = []
 
     class FakeClient:
         def ssh(self, name, command, timeout=None):
             calls.append(command)
-            return SimpleNamespace(returncode=0, stdout="wrong\n", stderr="")
+            if "rev-parse HEAD" in command:
+                return SimpleNamespace(returncode=0, stdout="imagehead\n", stderr="")
+            return SimpleNamespace(returncode=128, stdout="", stderr="fatal: not a valid object")
 
     with pytest.raises(run_tier2.BaseCommitMismatch):
         run_tier2.assert_base_commit(FakeClient(), "t2-case", "expected")
 
-    assert calls == ["git -C /home/exedev/work/repo rev-parse HEAD"]
+    assert calls[0] == "git -C /home/exedev/work/repo rev-parse HEAD"
+    assert "cat-file -t expected" in calls[1]
+
+
+def test_head_ahead_of_base_is_allowed_and_returned():
+    class FakeClient:
+        def ssh(self, name, command, timeout=None):
+            if "rev-parse HEAD" in command:
+                return SimpleNamespace(returncode=0, stdout="imagehead\n", stderr="")
+            return SimpleNamespace(returncode=0, stdout="commit\n", stderr="")
+
+    assert run_tier2.assert_base_commit(FakeClient(), "t2-case", "expected") == "imagehead"
 
 
 def test_extract_patch_uses_pinned_base_commit():
@@ -78,6 +91,7 @@ def test_fake_run_persists_trace_and_redacts_secrets_before_teardown(tmp_path, m
     manifest_path.write_text(json.dumps(manifest))
 
     removed = []
+    prompt_writes = {}
 
     class FakeClient:
         def create(self, name):
@@ -102,6 +116,8 @@ def test_fake_run_persists_trace_and_redacts_secrets_before_teardown(tmp_path, m
                 return SimpleNamespace(returncode=0, stdout="", stderr="")
             if command == "git -C /home/exedev/work/repo rev-parse HEAD":
                 return SimpleNamespace(returncode=0, stdout="abc123\n", stderr="")
+            if command.startswith("git -C /home/exedev/work/repo cat-file -t"):
+                return SimpleNamespace(returncode=0, stdout="commit\n", stderr="")
             if command.startswith("mkdir -p /home/exedev/work/traces"):
                 return SimpleNamespace(returncode=0, stdout="", stderr="secret sk-ant-secret-value")
             if command == "git -C /home/exedev/work/repo add -N .":
@@ -109,6 +125,9 @@ def test_fake_run_persists_trace_and_redacts_secrets_before_teardown(tmp_path, m
             if command == "git -C /home/exedev/work/repo diff abc123":
                 return SimpleNamespace(returncode=0, stdout="diff --git a/a.py b/a.py\n", stderr="")
             raise AssertionError(command)
+
+        def write_text(self, name, path, text):
+            prompt_writes[path] = text
 
         def scp_from(self, name, remote, local):
             Path(local).parent.mkdir(parents=True, exist_ok=True)
@@ -130,6 +149,7 @@ def test_fake_run_persists_trace_and_redacts_secrets_before_teardown(tmp_path, m
     )
 
     assert rows[0]["resolved"] is True
+    assert run_tier2.REMOTE_PROMPT_FILE in prompt_writes and prompt_writes[run_tier2.REMOTE_PROMPT_FILE]
     assert rows[0]["metrics"]["stated_hypothesis"] is True
     assert removed == [rows[0]["box_name"]]
     artifact_text = "\n".join(path.read_text(errors="replace") for path in (tmp_path / "out").rglob("*") if path.is_file())
@@ -159,3 +179,45 @@ def test_box_aware_grader_receives_client_and_box_name(tmp_path):
 
     assert result["resolved"] is False
     assert seen == {"client": "client-object", "box_name": "t2-case"}
+
+
+def test_prompt_with_skill_combines_for_single_arg_agents(tmp_path):
+    skill = tmp_path / "skill.md"
+    skill.write_text("Debug systematically.")
+    cmd = run_tier2.build_remote_agent_command(
+        "Fix the bug.",
+        arm="skill",
+        skill_file=str(skill),
+        agent_cmd="codex exec {prompt_with_skill}",
+        trace_remote="/home/exedev/work/traces/t.jsonl",
+        stderr_remote="/home/exedev/work/traces/t.stderr",
+    )
+    assert "Debug systematically." in cmd and "Fix the bug." in cmd
+    baseline = run_tier2.build_remote_agent_command(
+        "Fix the bug.",
+        arm="baseline",
+        skill_file=str(skill),
+        agent_cmd="codex exec {prompt_with_skill}",
+        trace_remote="/home/exedev/work/traces/t.jsonl",
+        stderr_remote="/home/exedev/work/traces/t.stderr",
+    )
+    assert "Debug systematically." not in baseline
+
+
+def test_bootstrap_codex_agent_installs_and_pushes_auth(tmp_path):
+    auth = tmp_path / "auth.json"
+    auth.write_text('{"token": "subscription"}')
+    commands, writes = [], {}
+
+    class FakeClient:
+        def ssh(self, name, command, timeout=None):
+            commands.append(command)
+            from types import SimpleNamespace
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        def write_text(self, name, path, text):
+            writes[path] = text
+
+    run_tier2.bootstrap_codex_agent(FakeClient(), "t2-box", auth_path=auth)
+    assert any("npm install -g @openai/codex" in c for c in commands)
+    assert writes["/home/exedev/.codex/auth.json"] == '{"token": "subscription"}'
