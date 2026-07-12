@@ -1,0 +1,48 @@
+#!/usr/bin/env python3
+"""Source of truth for goal-spec rough-task prompts."""
+import json
+from pathlib import Path
+
+
+CASES = [
+    {
+        "id": "gs-eval-suite",
+        "input": "Spec a /goal dispatch to add deterministic eval coverage for a skill. The agent can read the repo, run pytest, and write under skills/new-skill. It must beat the current zero-case baseline by adding at least 12 graded cases and leave a deviations log.",
+    },
+    {
+        "id": "gs-data-cleanup",
+        "input": "Prepare a /goal brief for cleaning a CSV export pipeline. The agent has repo access, the failing fixture path, and a local command that reproduces the bad rows. Success means reducing malformed rows below 1% on the holdout sample.",
+    },
+    {
+        "id": "gs-ui-regression",
+        "input": "Write a /goal brief for fixing a mobile layout regression. The agent can run the dev server and browser checks. The number to beat is zero overlapping text nodes across the three named viewports.",
+    },
+    {
+        "id": "gs-docs-migration",
+        "input": "Turn this into a launch-ready dispatch: migrate the old install docs to the new CLI names. Context lives in docs/ and tests/fixtures/help-output.txt. Verification should compare every old command mention against a generated mapping and get 100% coverage.",
+    },
+    {
+        "id": "gs-trace-audit",
+        "input": "Spec a /goal for auditing agent traces. The agent has the trace export command, a sample trace directory, and the rubric from the methodology doc. It should improve classified failure coverage from 70% to at least 90%.",
+    },
+    {
+        "id": "gs-accessibility",
+        "input": "Create a /goal brief for an accessibility pass on the settings page. The agent can run local browser automation and axe output saved under out/a11y. Success is zero critical violations and no keyboard traps.",
+    },
+    {
+        "id": "gs-release-receipt",
+        "input": "Write the dispatch brief for generating a release receipt from committed artifacts. The agent can use git, pytest, and the existing report script. The receipt must include all 5 changed modules and reproduce from one command.",
+    },
+    {
+        "id": "gs-benchmark-refresh",
+        "input": "Make this rough task dispatchable: refresh benchmark results from saved model outputs only. No live model calls. The agent should improve report freshness from the stale 2026-06 snapshot to the provided 2026-07 result file.",
+    },
+]
+
+
+def write_cases(path):
+    Path(path).write_text("\n".join(json.dumps(case, sort_keys=True) for case in CASES) + "\n")
+
+
+if __name__ == "__main__":
+    write_cases(Path(__file__).with_name("cases.jsonl"))

@@ -1,0 +1,11 @@
+--- shelfd/circulation.py
++++ shelfd/circulation.py
+@@ -28,7 +28,7 @@ def checkout_book(
+     if book.reservations and book.reservations[0] != member.id:
+         raise ValueError("book is reserved for another member")
+     start = parse_date(checked_out)
+-    due_date = due if due is not None else start + timedelta(days=DEFAULT_LOAN_DAYS)
++    due_date = parse_date(due) if due is not None else start + timedelta(days=DEFAULT_LOAN_DAYS)
+     if due_date < start:
+         raise ValueError("due date cannot be before checkout")
+     if book.reservations and book.reservations[0] == member.id:

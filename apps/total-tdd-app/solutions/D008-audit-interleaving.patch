@@ -1,0 +1,13 @@
+--- shelfd/audit.py
++++ shelfd/audit.py
+@@ -22,9 +22,5 @@ def record(
+         member_id=member_id,
+         detail=detail,
+     )
+-    if state.audit:
+-        previous = state.audit[-1]
+-        if previous.book_id == event.book_id and previous.member_id == event.member_id and previous.at.date() == event.at.date():
+-            return previous
+     state.audit.append(event)
+     return event
+ 

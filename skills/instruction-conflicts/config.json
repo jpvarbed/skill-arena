@@ -1,0 +1,18 @@
+{
+  "name": "instruction-conflicts",
+  "skill_path": "SKILL.md",
+  "cases_path": "cases.jsonl",
+  "prompt_variants": [
+    {
+      "name": "with-skill",
+      "inject_skill": true,
+      "template": "Audit the layered instruction stack below. Return ONLY a JSON array of ids from this closed vocabulary: autonomy-conflict, commit-policy-conflict, tone-conflict, verification-conflict, output-format-conflict, tool-choice-conflict, secret-handling-conflict, ambiguous-precedence, same-tier-conflict. Return [] if there is no genuine conflict. Do not explain.\n\nSTACK:\n{draft}\n"
+    }
+  ],
+  "scorer": {
+    "type": "expect_set"
+  },
+  "models": {
+    "codex": "gpt-5.5"
+  }
+}

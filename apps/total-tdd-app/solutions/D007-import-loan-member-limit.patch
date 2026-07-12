@@ -1,0 +1,14 @@
+--- shelfd/io.py
++++ shelfd/io.py
+@@ -55,8 +55,10 @@ def import_loans_csv(state: LibraryState, text: str) -> list[str]:
+     reader = csv.DictReader(StringIO(text))
+     imported: list[str] = []
+     for row in reader:
+-        get_member(state, row["member_id"])
++        member = get_member(state, row["member_id"])
+         book = state.books[row["book_id"]]
++        if not row.get("returned") and len(state.active_loans_for_member(member.id)) >= member.max_loans:
++            raise ValueError("member loan limit reached")
+         loan = Loan(
+             id=row.get("id") or state.next_loan_id(),
+             book_id=book.id,

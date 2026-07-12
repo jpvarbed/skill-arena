@@ -1,0 +1,11 @@
+--- shelfd/catalog.py
++++ shelfd/catalog.py
+@@ -101,7 +101,8 @@ def search_books(
+         ]
+     if author:
+-        books = [book for book in books if author in book.author]
++        wanted_author = author.casefold()
++        books = [book for book in books if wanted_author in book.author.casefold()]
+     if genre:
+         wanted = genre.strip().lower()
+         books = [book for book in books if wanted in book.genres]

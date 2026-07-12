@@ -26,6 +26,10 @@ def score_case(case, model_output, scorer_config=None, judge_call=None):
         return score_expect_set(case, model_output)
     if scorer_type == "deterministic":
         return score_deterministic(case, model_output)
+    if scorer_type == "compression_fidelity":
+        return score_compression_fidelity(case, model_output, scorer_config)
+    if scorer_type == "brief_lint":
+        return score_brief_lint(case, model_output)
     if scorer_type == "llm_judge":
         return score_llm_judge(case, model_output, scorer_config, judge_call=judge_call)
     if scorer_type == "arize":
@@ -83,6 +87,149 @@ def score_deterministic(case, model_output):
         return {"pass": False, "detail": "no deterministic rules declared"}
     ok = all(passed for passed, _ in checks)
     return {"pass": ok, "detail": "; ".join(detail for _, detail in checks)}
+
+
+TOKEN_RE = re.compile(r"[A-Za-z0-9_]+|[^\sA-Za-z0-9_]", re.UNICODE)
+
+
+def deterministic_tokens(text):
+    """Split into word-like runs plus punctuation tokens; stable across platforms."""
+    return TOKEN_RE.findall(str(text))
+
+
+def score_compression_fidelity(case, model_output, scorer_config=None):
+    if is_error_sentinel(model_output):
+        return {"pass": False, "detail": f"backend error: {model_output}"}
+    scorer_config = scorer_config or {}
+    threshold = float(scorer_config.get("fidelity_threshold", 0.8))
+    source = str(case.get("input") or case.get("draft") or "")
+    source_tokens = deterministic_tokens(source)
+    output_tokens = deterministic_tokens(model_output)
+    if not source_tokens:
+        return {"pass": False, "detail": "empty source text", "score": 0.0}
+
+    probes = case.get("probes")
+    if probes is None and isinstance(case.get("expect"), dict):
+        probes = case["expect"].get("probes")
+    if not probes:
+        return {"pass": False, "detail": "compression_fidelity requires probes", "score": 0.0}
+
+    matched = []
+    missing = []
+    for probe in probes:
+        pattern = probe.get("answer_pattern")
+        if pattern and re.search(pattern, str(model_output), re.I | re.S):
+            matched.append(probe.get("question", pattern))
+        else:
+            missing.append(probe.get("question", pattern))
+    fidelity = len(matched) / len(probes)
+    compression = max(0.0, 1.0 - (len(output_tokens) / len(source_tokens)))
+    ok = fidelity >= threshold
+    return {
+        "pass": ok,
+        "detail": (
+            f"compression={compression:.1%}; fidelity={len(matched)}/{len(probes)}"
+            + ("" if ok else f"; missing={missing!r}")
+        ),
+        "score": compression if ok else 0.0,
+        "compression": compression,
+        "fidelity": fidelity,
+    }
+
+
+SECTION_RE = re.compile(r"^(GOAL|CONTEXT|EFFORT|VERIFY|RESOLVED(?: \(do not reopen\))?|RUBRIC(?: \(binary\))?):", re.M)
+
+
+def lint_goal_brief(text):
+    text = str(text).replace("\r\n", "\n")
+    lines = text.splitlines()
+    sections = _brief_sections(lines)
+    checks = {
+        "goal_single_line": _has_single_line_goal(sections),
+        "context_access_list": _has_context_access_list(sections),
+        "effort_line": _has_effort_line(sections),
+        "verify_number_to_beat": _has_verify_number_to_beat(sections),
+        "rubric_binary_checkboxes": _has_binary_rubric(sections),
+        "resolved_present": any(key.startswith("RESOLVED") for key in sections),
+    }
+    violations = [name for name, passed in checks.items() if not passed]
+    return {"pass": not violations, "checks": checks, "violations": violations}
+
+
+def score_brief_lint(case, model_output):
+    if is_error_sentinel(model_output):
+        return {"pass": False, "detail": f"backend error: {model_output}"}
+    result = lint_goal_brief(model_output)
+    expected = case.get("expect")
+    if isinstance(expected, dict) and "passes_lint" in expected:
+        ok = result["pass"] is bool(expected["passes_lint"])
+        return {
+            "pass": ok,
+            "detail": "matched hand label" if ok else f"expected passes_lint={expected['passes_lint']} got {result['pass']}",
+        }
+    return {
+        "pass": result["pass"],
+        "detail": "brief lint passed" if result["pass"] else f"brief lint failed: {result['violations']}",
+        "score": 1.0 if result["pass"] else 0.0,
+    }
+
+
+def _brief_sections(lines):
+    sections = {}
+    current = None
+    for line in lines:
+        match = SECTION_RE.match(line)
+        if match:
+            current = match.group(1)
+            sections.setdefault(current, []).append(line)
+        elif current:
+            sections[current].append(line)
+    return sections
+
+
+def _section_text(sections, prefix):
+    for key, value in sections.items():
+        if key.startswith(prefix):
+            return "\n".join(value)
+    return ""
+
+
+def _has_single_line_goal(sections):
+    goal = sections.get("GOAL")
+    if not goal or len([line for line in goal if line.strip()]) != 1:
+        return False
+    return bool(re.match(r"^GOAL:\s+\S", goal[0]))
+
+
+def _has_context_access_list(sections):
+    text = _section_text(sections, "CONTEXT")
+    if not text:
+        return False
+    has_list_shape = any(marker in text for marker in ("tools:", "refs:", "output:", "fixtures:", ";", "\n- "))
+    access_terms = sum(1 for term in ("tool", "cli", "repo", "path", "fixture", "ref", "auth", "output") if re.search(term, text, re.I))
+    return has_list_shape and access_terms >= 2
+
+
+def _has_effort_line(sections):
+    effort = sections.get("EFFORT")
+    return bool(effort and len([line for line in effort if line.strip()]) == 1 and re.match(r"^EFFORT:\s+(high|medium|low)\b", effort[0], re.I))
+
+
+def _has_verify_number_to_beat(sections):
+    text = _section_text(sections, "VERIFY")
+    if not text:
+        return False
+    return bool(re.search(r"(beat|baseline|target|break|>=|at least|under|below)[^.\n]*\d", text, re.I))
+
+
+def _has_binary_rubric(sections):
+    text = _section_text(sections, "RUBRIC")
+    if not text:
+        return False
+    items = [line.strip() for line in text.splitlines() if line.strip().startswith("-")]
+    if not items:
+        return False
+    return all(re.match(r"^-\s+\[\s\]\s+\S", item) for item in items)
 
 
 def score_llm_judge(case, model_output, scorer_config, judge_call=None):

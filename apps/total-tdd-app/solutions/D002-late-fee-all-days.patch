@@ -1,0 +1,11 @@
+--- shelfd/fees.py
++++ shelfd/fees.py
+@@ -14,7 +14,7 @@ def days_late(loan: Loan, returned_on: date | str) -> int:
+ 
+ 
+ def late_fee_cents(loan: Loan, returned_on: date | str, *, daily_cents: int = DAILY_LATE_FEE_CENTS) -> int:
+-    late_days = max(0, days_late(loan, returned_on) - 1)
++    late_days = days_late(loan, returned_on)
+     return late_days * int(daily_cents)
+ 
+ 

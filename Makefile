@@ -1,3 +1,3 @@
 .PHONY: test
 test:
-	.venv/bin/python -m pytest traj/ -q
+	.venv/bin/python -m pytest -q
