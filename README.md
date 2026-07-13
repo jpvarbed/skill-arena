@@ -18,7 +18,17 @@ uv run arena run --all --backends anthropic,openai,google --dry-run
 
 # the real matrix
 uv run arena run --all --backends anthropic,openai,google
+
+# local models (free, on-device) via the LiteLLM proxy on :4000
+uv run arena run --skill highsignal --backends local
 ```
+
+**`local` backend:** runs on the LiteLLM proxy (Ollama) at `http://localhost:4000/v1` — free,
+on-device, no metering, so it's the cost-right column for high-volume scoring/judging. Default
+model `qwen-coder-32b-fc` (LiteLLM function-call emulation → structured tool_calls). Needs no API
+key (localhost-only); override the endpoint with `LOCAL_LLM_BASE`. Add `"local": "<ollama-model>"`
+to a skill's `models` map, or use it as an LLM-judge backend (`"scorer": {"type":"llm_judge",
+"backend":"local"}`). See `~/dev/local-llm` for the proxy setup.
 
 Each run writes `out/results.json`, `out/leaderboard.html`, and a table to stdout. Regenerate the
 page from a saved run:

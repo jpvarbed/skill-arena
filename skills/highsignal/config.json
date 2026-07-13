@@ -17,6 +17,16 @@
     "haiku": "claude-haiku-4-5-20251001",
     "openai": "gpt-5.5",
     "gemini-pro": "gemini-2.5-pro",
-    "gemini-flash": "gemini-2.5-flash"
+    "gemini-flash": "gemini-2.5-flash",
+    "local": "qwen-coder-32b-fc",
+    "qwen-coder-7b": "qwen2.5-coder:7b",
+    "qwen-coder-14b": "qwen2.5-coder:14b",
+    "qwen-coder-32b": "qwen2.5-coder:32b",
+    "llama31-8b": "llama3.1:8b",
+    "gemma3-12b": "gemma3:12b",
+    "gptoss-20b": "gpt-oss:20b",
+    "qwen3-14b": "qwen3:14b",
+    "mistral-nemo": "mistral-nemo:12b",
+    "deepseek-v2-16b": "deepseek-coder-v2:16b"
   }
 }
