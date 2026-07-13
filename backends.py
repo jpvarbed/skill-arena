@@ -122,6 +122,15 @@ BACKENDS = {"codex": call_codex, "claude-cli": call_claude_cli, "anthropic": cal
             "opus": call_anthropic, "sonnet": call_anthropic, "haiku": call_anthropic,
             "gemini-pro": call_google, "gemini-flash": call_google}
 
+# Local model bake-off columns (JAS-129): each is call_local with a distinct model, supplied
+# by the skill config's "models" map. For the bake-off, point LOCAL_LLM_BASE at Ollama's
+# OpenAI endpoint (http://localhost:11434/v1) so the "model" is the raw ollama tag; tool-call
+# normalization (the :4000 proxy) isn't needed for expect_set / llm_judge scoring. Distinct
+# names keep them as separate leaderboard columns.
+for _alias in ("qwen-coder-7b", "qwen-coder-14b", "qwen-coder-32b", "llama31-8b",
+               "gemma3-12b", "gptoss-20b", "qwen3-14b", "mistral-nemo", "deepseek-v2-16b"):
+    BACKENDS[_alias] = call_local
+
 
 _BACKEND_ENV = {
     "anthropic": "ANTHROPIC_API_KEY",
