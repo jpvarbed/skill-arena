@@ -104,7 +104,10 @@ BACKENDS = {"codex": call_codex, "claude-cli": call_claude_cli, "anthropic": cal
             # model aliases: same provider fn, distinct leaderboard column; the model
             # id comes from each skill config's "models" map keyed by these names.
             "opus": call_anthropic, "sonnet": call_anthropic, "haiku": call_anthropic,
-            "gemini-pro": call_google, "gemini-flash": call_google}
+            "gemini-pro": call_google, "gemini-flash": call_google,
+            # codex-seat aliases (subscription CLI, no API key). Bare "gpt-5.6" is an
+            # invalid id — only the family members (sol/luna/terra) exist.
+            "codex-56sol": call_codex, "codex-56luna": call_codex}
 
 
 _BACKEND_ENV = {

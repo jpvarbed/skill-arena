@@ -20,10 +20,10 @@ FULL_BACKENDS = ["haiku", "openai", "google"]
 
 # Generation is the leverage step — it sets the ceiling on variant quality — so it
 # gets a STRONG model, never a cheap one (cheap models belong in the scoring matrix).
-# Default = GPT-5.5 on Jason's codex SUBSCRIPTION (no per-call API cost).
+# Default = GPT-5.6 Sol on Jason's codex SUBSCRIPTION (no per-call API cost).
 DEFAULT_GENERATOR = "codex"
 GENERATOR_MODELS = {
-    "codex": "gpt-5.5",  # via `codex exec` (subscription)
+    "codex": "gpt-5.6-sol",  # via `codex exec` (subscription)
     "opus": "claude-opus-4-8",  # Anthropic API (metered) — strongest writer
     "openai": "gpt-5.5",  # OpenAI API (metered)
     "google": "gemini-2.5-flash",  # cheap fallback only
@@ -391,6 +391,8 @@ def score_contestant(skill, cases, contestant, backend, model_id, model_call, tr
 
 def render_forge_prompt(skill_text, case, config=None):
     forge_cfg = config.get("forge", {}) if isinstance(config, dict) else {}
+    if forge_cfg.get("mode") == "prompt-template":
+        return _render_prompt_template_mode(skill_text, case, config)
     skill_block = skill_text.strip() or "No additional skill instructions."
     if forge_cfg.get("mode") == "code-review":
         return _render_code_review_prompt(skill_block, case, forge_cfg)
@@ -406,6 +408,32 @@ def render_forge_prompt(skill_text, case, config=None):
         f"CONTEXT: {context}\n"
         f"DRAFT:\n{draft}\n"
     )
+
+
+def _strip_frontmatter(text):
+    if text.startswith("---\n"):
+        _, sep, rest = text.partition("\n---\n")
+        if sep:
+            return rest
+    return text
+
+
+def _render_prompt_template_mode(skill_text, case, config):
+    # Score contestants through the skill's OWN prompt template — the same path
+    # `arena run` uses — so the original contestant's prompts are byte-identical
+    # to the live eval's. Instrument drift then shows up loudly as original
+    # disagreeing with the screen, instead of silently scoring a different task.
+    variants = config.get("prompt_variants") or []
+    variant = variants[0] if variants else {}
+    template = variant.get("template") or ""
+    values = {
+        **case,
+        "input": case.get("input") or case.get("draft") or "",
+        "draft": case.get("draft") or case.get("input") or "",
+    }
+    prompt = template.format(**values) if template else (case.get("input") or case.get("draft") or "")
+    body = _strip_frontmatter(skill_text).strip()
+    return f"{body}\n\n{prompt}" if body else prompt
 
 
 def _render_code_review_prompt(skill_block, case, forge_cfg):

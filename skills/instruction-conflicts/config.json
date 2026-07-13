@@ -12,7 +12,19 @@
   "scorer": {
     "type": "expect_set"
   },
+  "forge": {
+    "mode": "prompt-template",
+    "mutation_task": "You are improving a SKILL.md used to AUDIT a layered instruction stack (user / global / project / skill / tool tiers) for genuine conflicts and ambiguous precedence.",
+    "mutation_angles": [
+      "Sharpen each conflict category's definition with one crisp positive example and one near-miss non-conflict per category.",
+      "Add a per-dimension decision procedure: enumerate every directive touching the same dimension across tiers, then explicitly test each pair for opposition before concluding there is no conflict.",
+      "Reduce misses: state explicitly that implicit and indirect contradictions still count as conflicts, with examples of real conflicts that are easy to wave off as compatible.",
+      "Reorder for salience and end with a compact checklist the auditor runs before answering: every dimension checked pairwise across tiers, ambiguity considered before concluding clean."
+    ]
+  },
   "models": {
-    "codex": "gpt-5.5"
+    "codex": "gpt-5.5",
+    "codex-56sol": "gpt-5.6-sol",
+    "codex-56luna": "gpt-5.6-luna"
   }
 }
