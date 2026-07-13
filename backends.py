@@ -98,9 +98,25 @@ def call_google(prompt, model):
     return "".join(part.get("text", "") for part in parts) or json.dumps(d)
 
 
+def call_local(prompt, model):
+    # Local models via the LiteLLM proxy (Ollama backend) on :4000 — free, on-device, no
+    # metering: the cost-right backend when you want to burn compute, not dollars. Default
+    # `qwen-coder-32b-fc` routes through LiteLLM's function-call emulation so tool-using
+    # skills get structured tool_calls (raw Ollama leaves them in `content`). The proxy is
+    # localhost-only, so "sk-local" is a placeholder, not a secret. Override the endpoint
+    # with LOCAL_LLM_BASE. Higher token cap than the shared helper so JSON verdicts aren't
+    # truncated.
+    base = os.environ.get("LOCAL_LLM_BASE", "http://localhost:4000/v1").rstrip("/")
+    d = _http(base + "/chat/completions",
+              {"authorization": "Bearer sk-local"},
+              {"model": model or "qwen-coder-32b-fc", "max_tokens": 1024, "temperature": 0,
+               "messages": [{"role": "user", "content": prompt}]})
+    return d["choices"][0]["message"]["content"] or json.dumps(d)
+
+
 BACKENDS = {"codex": call_codex, "claude-cli": call_claude_cli, "anthropic": call_anthropic,
             "openrouter": call_openrouter, "fireworks": call_fireworks,
-            "openai": call_openai, "google": call_google,
+            "openai": call_openai, "google": call_google, "local": call_local,
             # model aliases: same provider fn, distinct leaderboard column; the model
             # id comes from each skill config's "models" map keyed by these names.
             "opus": call_anthropic, "sonnet": call_anthropic, "haiku": call_anthropic,
