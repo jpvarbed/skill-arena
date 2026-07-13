@@ -104,7 +104,7 @@ def bootstrap_codex_agent(client, box_name, auth_path=None):
         box_name,
         # node 22 via NodeSource (NOT apt's old node) + codex@latest, UNCONDITIONALLY. The exe.dev
         # image ships codex 0.143.0 pre-installed, which 400s on every 5.6 model ("requires a newer
-        # version of Codex") → empty patch (HAR-79). A `command -v codex ||` guard would skip the
+        # version of Codex") → empty patch. A `command -v codex ||` guard would skip the
         # upgrade and keep the stale 0.143.0, so we always upgrade to a 5.6-capable build.
         "(curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - "
         "&& sudo apt-get install -y -qq nodejs && sudo npm install -g @openai/codex@latest) >/dev/null 2>&1; "
