@@ -23,9 +23,19 @@ PUBLISHERS = [
         "skill": "instruction-conflicts",
         "category": "meta",
         "canonical_repo": "https://github.com/jpvarbed/skill-arena",
+        "note": ("Forge winner v1 adopted as the shipped SKILL.md (cross-model checked: "
+                 "16/18 sol, 14/18 luna, 16/18 gpt-5.5 at k=3); the 'Original' rows above "
+                 "are the pre-forge skill. Receipt in the canonical repo."),
         "sources": {
-            "arena_results": "out/live-instruction-conflicts/results.json",
+            # historical gpt-5.5 row first, then the 5.6-family screen rows
+            "arena_results": [
+                "out/live-instruction-conflicts/results.json",
+                "out/live-ic-56screen-sol/results.json",
+                "out/live-ic-56screen-luna/results.json",
+            ],
             "cases": "skills/instruction-conflicts/cases.jsonl",
+            "forge": "out/forge-ic-56/forge-results.json",
+            "appendix_md": "out/forge-ic-56/precision.md",
         },
     },
     {
@@ -188,7 +198,9 @@ def build_publisher_surface(entry):
     skill = SkillRef(entry["category"], entry["skill"])
     canonical = entry["canonical_repo"]
     sources = entry.get("sources", {})
-    notes = []
+    # a registry-authored context line, rendered with the parser notes (e.g. "the
+    # shipped SKILL.md is the measured winner, not the pre-forge original")
+    notes = [entry["note"]] if entry.get("note") else []
     skill_text = read_optional(sources.get("skill_file")) if "skill_file" in sources else None
     if "skill_file" in sources and skill_text is None:
         notes.append("skill source missing; SKILL.md copy skipped.")
@@ -230,6 +242,12 @@ def build_publisher_surface(entry):
         except (KeyError, TypeError, ValueError, json.JSONDecodeError):
             notes.append("forge results unparseable; skipped.")
 
+    # optional verbatim markdown section (e.g. a precision diagnostic produced by a
+    # standalone tool) — publish stays generic, the section rides along as evidence
+    appendix = read_optional(sources.get("appendix_md")) if "appendix_md" in sources else None
+    if "appendix_md" in sources and appendix is None:
+        notes.append("appendix source missing; skipped.")
+
     data = {
         "schema_version": 1,
         "skill": skill.name,
@@ -238,6 +256,7 @@ def build_publisher_surface(entry):
         "evidence": ["eval/RESULTS.md", "eval/data.json"],
         "detection": detection,
         "forge": forge,
+        "appendix": appendix,
         "notes": notes,
     }
     measured = bool(detection or forge)
@@ -398,6 +417,8 @@ def render_measured_perf(skill, data):
             best = f"{model['best_variant']} {format_score_cell(model['best_variant_passes'], model['n'], model['best_variant_score'])}"
             lines.append(f"| {model['backend']} | {original} | {best} | {format_signed_pp(model['lift_pp'])} |")
         lines.append("")
+    if data.get("appendix"):
+        lines.extend([data["appendix"].rstrip(), ""])
     lines.extend([
         "## Caveats",
         "",
@@ -571,38 +592,44 @@ def resolve_source_path(path_value):
 def parse_arena_results_source(path_value, skill_name, cases_count, notes):
     if not path_value:
         return None
-    path = resolve_source_path(path_value)
-    if not path.exists():
-        notes.append("arena results source missing; skipped.")
-        return None
-    try:
-        results = json.loads(path.read_text())
-    except json.JSONDecodeError:
-        notes.append("arena results unparseable; skipped.")
-        return None
-    if results.get("dry_run"):
-        notes.append("arena results are dry-run stubs; skipped.")
-        return None
-    skill_result = results.get("skills", {}).get(skill_name)
-    if not skill_result:
-        notes.append("arena results missing this skill; skipped.")
-        return None
+    # a list of paths merges score rows from several runs (e.g. per-model screen
+    # dirs) into one detection table, in the order given
+    paths = path_value if isinstance(path_value, list) else [path_value]
     scores = []
-    for cell in skill_result.get("cells", []):
-        total = int(cell.get("n") or 0)
-        passes = int(cell.get("passes") or 0)
-        rate = f"{(passes / total) * 100:.0f}%" if total else "n/a"
-        label = cell.get("backend", "unknown")
-        variant = cell.get("prompt_variant")
-        if variant and variant != "default":
-            label = f"{label} / {variant}"
-        scores.append({
-            "model": label,
-            "passes": passes,
-            "total": total,
-            "rate": rate,
-            "false_positives": count_false_positives(cell),
-        })
+    for one in paths:
+        path = resolve_source_path(one)
+        if not path.exists():
+            notes.append(f"arena results source missing ({one}); skipped.")
+            continue
+        try:
+            results = json.loads(path.read_text())
+        except json.JSONDecodeError:
+            notes.append(f"arena results unparseable ({one}); skipped.")
+            continue
+        if results.get("dry_run"):
+            notes.append(f"arena results are dry-run stubs ({one}); skipped.")
+            continue
+        skill_result = results.get("skills", {}).get(skill_name)
+        if not skill_result:
+            notes.append(f"arena results missing this skill ({one}); skipped.")
+            continue
+        for cell in skill_result.get("cells", []):
+            total = int(cell.get("n") or 0)
+            passes = int(cell.get("passes") or 0)
+            rate = f"{(passes / total) * 100:.0f}%" if total else "n/a"
+            # exact model id when the run recorded one; the backend alias is
+            # repointable in config, so ids keep old rows meaningful
+            label = cell.get("model") or cell.get("backend", "unknown")
+            variant = cell.get("prompt_variant")
+            if variant and variant != "default":
+                label = f"{label} / {variant}"
+            scores.append({
+                "model": label,
+                "passes": passes,
+                "total": total,
+                "rate": rate,
+                "false_positives": count_false_positives(cell),
+            })
     if not scores:
         notes.append("arena results had no scored cells; skipped.")
         return None
@@ -691,13 +718,15 @@ def _write_verification_report(report_path, skills_repo, surfaces, expected_writ
             ref = surface.skill
             reg = next((r for r in PUBLISHERS if r.get("skill") == ref.name), {})
             src_bits = []
-            for label, path in sorted((reg.get("sources") or {}).items()):
-                try:
-                    from pathlib import Path as _P
-                    data = _P(path).expanduser().read_bytes() if _P(path).expanduser().is_absolute() else (_P(__file__).parent / path).read_bytes()
-                    src_bits.append(f"{label}=`{path}` sha256 `{hashlib.sha256(data).hexdigest()}`")
-                except OSError:
-                    src_bits.append(f"{label}=`{path}` (unreadable at verify time)")
+            for label, value in sorted((reg.get("sources") or {}).items()):
+                # list-valued sources (merged runs) hash each path individually
+                for path in value if isinstance(value, list) else [value]:
+                    try:
+                        from pathlib import Path as _P
+                        data = _P(path).expanduser().read_bytes() if _P(path).expanduser().is_absolute() else (_P(__file__).parent / path).read_bytes()
+                        src_bits.append(f"{label}=`{path}` sha256 `{hashlib.sha256(data).hexdigest()}`")
+                    except OSError:
+                        src_bits.append(f"{label}=`{path}` (unreadable at verify time)")
             lines.append(f"- **{ref.name}**: " + ("; ".join(src_bits) if src_bits else "no sources"))
     lines += ["", "Hygiene scan: clean (local paths, tracker-id shapes, credential-length literals).",
               "Generated by `arena publish --verify --report`; regenerate rather than hand-edit.", ""]

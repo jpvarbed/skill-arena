@@ -332,3 +332,29 @@ def test_score_contestant_parallel_matches_serial():
     assert [c["id"] for c in parallel["cases"]] == ["d1", "d2", "c1", "d3"]  # ...in INPUT order
     assert parallel["score"] == serial["score"]
     assert calls["n"] == 2 * len(cases) * 3                       # every case x trial ran, both runs
+
+
+def test_prompt_template_mode_matches_arena_run_prompts():
+    # The original contestant must be scored on byte-identical prompts to
+    # `arena run`'s — otherwise the forge silently measures a different task
+    # (that exact bug cost a full 540-call run on 2026-07-12).
+    from arena import load_cases, load_skill, render_prompt
+    from forge import read_original_skill_text, render_forge_prompt
+
+    skill = load_skill("instruction-conflicts")
+    assert skill.config["forge"]["mode"] == "prompt-template"
+    variant = skill.config["prompt_variants"][0]
+    original = read_original_skill_text(skill)
+    for case in load_cases(skill)[:3]:
+        assert render_forge_prompt(original, case, skill.config) == render_prompt(skill, case, variant)
+
+
+def test_prompt_template_mode_baseline_is_bare_template():
+    from arena import load_cases, load_skill
+    from forge import render_forge_prompt
+
+    skill = load_skill("instruction-conflicts")
+    case = load_cases(skill)[0]
+    prompt = render_forge_prompt("", case, skill.config)
+    assert prompt.startswith("Audit the layered instruction stack")
+    assert "No additional skill instructions." not in prompt

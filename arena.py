@@ -158,6 +158,9 @@ def run_cell(skill, cases, variant, backend, dry_run=False):
     scored = [result["score"] for result in case_results if "score" in result]
     cell = {
         "backend": backend,
+        # exact model id, not just the backend alias: aliases are repointable in
+        # config, so a receipt without the id stops meaning anything after upgrades
+        "model": skill.config.get("models", {}).get(backend),
         "prompt_variant": variant.get("name", "default"),
         "pass_rate": passed / n if n else None,
         "n": n,

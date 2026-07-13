@@ -388,4 +388,101 @@ def test_dry_run_arena_results_do_not_render_as_evidence(tmp_path):
 
     perf = (root / "productivity" / "caveman" / "PERF.md").read_text()
     assert "No objective eval yet." in perf
-    assert "arena results are dry-run stubs; skipped." in perf
+    assert "arena results are dry-run stubs" in perf and "; skipped." in perf
+
+
+def test_multi_path_arena_results_merge_rows_with_model_ids(tmp_path):
+    root = make_requested_perf_repo(tmp_path)
+
+    def results_file(name, backend, model, passes):
+        path = tmp_path / name
+        path.write_text(json.dumps({
+            "skills": {
+                "caveman": {
+                    "cells": [
+                        {"backend": backend, "model": model, "prompt_variant": "with-skill",
+                         "n": 12, "passes": passes, "cases": []}
+                    ]
+                }
+            },
+        }))
+        return str(path)
+
+    old = results_file("old.json", "codex", None, 6)          # historical: no model id
+    new = results_file("new.json", "codex-56sol", "gpt-5.6-sol", 9)
+    publishers = [
+        {
+            "skill": "caveman",
+            "category": "productivity",
+            "canonical_repo": "https://github.com/jpvarbed/skill-arena",
+            "sources": {"arena_results": [old, new, str(tmp_path / "absent.json")]},
+        }
+    ]
+
+    assert run_publish(root, publishers=publishers) == 0
+
+    perf = (root / "productivity" / "caveman" / "PERF.md").read_text()
+    # merged rows, in order; exact model id preferred when the run recorded one
+    assert "| codex / with-skill | 6/12 |" in perf
+    assert "| gpt-5.6-sol / with-skill | 9/12 |" in perf
+    assert "arena results source missing" in perf and "absent.json" in perf
+
+
+def test_appendix_md_renders_verbatim_and_lands_in_data(tmp_path):
+    root = make_requested_perf_repo(tmp_path)
+    results = tmp_path / "results.json"
+    results.write_text(json.dumps({
+        "skills": {
+            "caveman": {
+                "cells": [
+                    {"backend": "codex", "prompt_variant": "with-skill", "n": 2, "passes": 1, "cases": []}
+                ]
+            }
+        },
+    }))
+    appendix = tmp_path / "precision.md"
+    appendix.write_text("## Precision diagnostic (secondary)\n\n| a | b |\n|---|---|\n| 1 | 2 |\n")
+    publishers = [
+        {
+            "skill": "caveman",
+            "category": "productivity",
+            "canonical_repo": "https://github.com/jpvarbed/skill-arena",
+            "sources": {"arena_results": str(results), "appendix_md": str(appendix)},
+        }
+    ]
+
+    assert run_publish(root, publishers=publishers) == 0
+
+    perf = (root / "productivity" / "caveman" / "PERF.md").read_text()
+    assert "## Precision diagnostic (secondary)" in perf
+    assert perf.index("## Precision diagnostic") < perf.index("## Caveats")
+    data = json.loads((root / "productivity" / "caveman" / "eval" / "data.json").read_text())
+    assert data["appendix"].startswith("## Precision diagnostic")
+
+
+def test_registry_note_renders_with_parser_notes(tmp_path):
+    root = make_requested_perf_repo(tmp_path)
+    results = tmp_path / "results.json"
+    results.write_text(json.dumps({
+        "skills": {
+            "caveman": {
+                "cells": [
+                    {"backend": "codex", "prompt_variant": "with-skill", "n": 2, "passes": 1, "cases": []}
+                ]
+            }
+        },
+    }))
+    publishers = [
+        {
+            "skill": "caveman",
+            "category": "productivity",
+            "canonical_repo": "https://github.com/jpvarbed/skill-arena",
+            "note": "Shipped SKILL.md is the measured winner.",
+            "sources": {"arena_results": str(results)},
+        }
+    ]
+
+    assert run_publish(root, publishers=publishers) == 0
+
+    perf = (root / "productivity" / "caveman" / "PERF.md").read_text()
+    assert "- Shipped SKILL.md is the measured winner." in perf

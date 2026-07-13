@@ -47,6 +47,22 @@ Forge writes `out/forge-results.json`, `out/receipt.html`, and variant files und
 `out/forge-variants/`. A hero requires strict lift over the original on the target model
 (`haiku` by default); ties and regressions render an honest no-improvement receipt.
 
+Two companion checks for `expect_set` skills, where the headline scorer passes a dirty
+case on any expected/got overlap:
+
+```sh
+# precision diagnostic + winner release gate (over-labeling can't buy a lift)
+uv run python precision.py --results out/forge-X/results.json --backend <backend>
+
+# merge N independent k=1 runs into a per-case strict-majority score
+uv run python majority.py --skill <name> --backend <backend> run1/results.json run2/results.json run3/results.json
+```
+
+`precision.py` recomputes exact-set rate, mean extra labels on dirty cases, and clean-case
+passes from the raw per-trial outputs, then gates the declared winner against the original:
+strictly higher subset score, no more extra labels, no fewer clean passes — fail any and the
+"lift" is ineligible.
+
 ## Add a Skill
 
 Create `skills/<name>/config.json`:

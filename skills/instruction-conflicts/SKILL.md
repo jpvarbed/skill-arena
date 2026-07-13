@@ -3,49 +3,96 @@ name: instruction-conflicts
 description: Audit the layered instruction stack (in-conversation user → soul.md/global → project guide → skill → tool/system) for conflicting or ambiguous directives, and surface which layer should win. Use when the user says "check for instruction conflicts", "do my layers contradict", "audit soul.md vs project/skill", "why is the agent ignoring X", or before relying on a deep skill stack. NOT for scoring one skill's quality (use linting-and-scoring) or auditing whether a skill obeys itself (use the adherence audit). Built from ManyIH (arXiv:2604.09443) via apply-paper.
 ---
 
-# instruction-conflicts — audit the instruction hierarchy
+# Instruction-conflict audit
 
-LLM agents resolve conflicting instructions from many sources poorly: with assumed (not explicit)
-precedence, frontier models drop to ~40% accuracy once tiers exceed a handful (ManyIH,
-arXiv:2604.09443). The fix is to make the tiers **explicit** and remove genuine contradictions.
-This audit does both: map the active layers, find conflicts, and state who wins.
+Map the active layers, compare directives that govern the same decision, and make precedence explicit. Report genuine conflicts without inflating harmless differences into contradictions.
 
-## Step 1 — Map the active tiers (highest precedence first)
-Enumerate what's actually in force for this context. Default precedence:
-1. **User, in-conversation** — explicit current instructions (highest).
-2. **Global user** — `soul.md` / `~/.claude/CLAUDE.md`.
-3. **Project** — repo `CLAUDE.md` / `AGENTS.md` / `.cursorrules`.
-4. **Skill** — the active `SKILL.md`(s).
-5. **Tool / harness / system** — plugin hooks, system prompt defaults (lowest).
+## 1. Map active tiers
 
-List each layer present + its source file. Note: more-specific *may* override more-general for
-scoped concerns, but **global hard rules** (security, money/secrets boundaries, "commit only when
-asked") are not overridable by a lower tier — call those out as pinned.
+Enumerate only the layers actually in force, highest precedence first:
 
-## Step 2 — Extract directives
-From each layer pull the imperatives: "always/never", "do NOT", output/format contracts, autonomy
-rules (when to ask vs act), tone rules, commit/secret/boundary rules. Tag each with its layer.
+1. **User, in conversation** — explicit current instructions.
+2. **Global user** — global preference or policy files.
+3. **Project** — repository guidance.
+4. **Skill** — active skill instructions.
+5. **Tool / harness / system** — tool defaults, hooks, or harness behavior.
 
-## Step 3 — Find conflicts
-Pair directives that address the **same dimension** and disagree. Classify:
-- **CONTRADICTION** — directly opposed (layer A says do X, layer B says never X).
-- **AMBIGUOUS-PRECEDENCE** — both could apply and the wording doesn't say which wins.
-- **OVERRIDE-OK** — they differ but precedence cleanly resolves it (lower yields to higher); no action.
-Common dimensions to check: autonomy (ask vs proceed), commit/push policy, tone/sycophancy,
-verification strictness, output format, tool choice, secret handling.
+For each tier, record its source. If a source is unavailable, mark the layer absent; do not infer its directives.
 
-## Step 4 — Output
-A table: `| Dimension | Layer A (directive) | Layer B (directive) | Type | Resolution / fix |`.
-- For CONTRADICTION/AMBIGUOUS: the fix is to **make precedence explicit** in the lower layer
-  ("defer to soul.md on tone") or reconcile the wording. Don't silently pick a side on a genuine
-  contradiction — surface it for the user.
-- End with the **explicit tier list** (Step 1) so the resolved precedence is written down, not assumed.
+More-specific instructions may override more-general ones within their scope. Treat explicitly pinned hard rules—such as security, money, secrets, or commit boundaries—as non-overridable by lower tiers.
 
-## Errors
+## 2. Extract directives
 
-| Issue | Fix |
+Collect actionable imperatives from each layer:
+
+- Always, never, must, and do-not rules
+- Output and formatting contracts
+- Ask-versus-act autonomy rules
+- Verification requirements
+- Commit, push, publishing, and secret-handling boundaries
+- Tone and interaction rules
+- Required or prohibited tools
+
+Record each directive with its tier, source, scope, conditions, and strength.
+
+## 3. Compare directives
+
+Compare two directives only when they govern the same dimension, scope, condition, and decision point. Different scopes, compatible requirements, or sequential actions are not conflicts.
+
+Classify each relevant pair:
+
+### CONTRADICTION
+
+Both directives apply simultaneously and require mutually exclusive behavior.
+
+- **Example:** Project says “always commit completed changes”; global says “never commit unless asked.”
+- **Near-miss:** Project says “commit when the user requests delivery”; global says “commit only when asked.” These agree.
+
+### AMBIGUOUS-PRECEDENCE
+
+Both directives plausibly apply and differ, but their scope, strength, or override relationship does not establish which governs.
+
+- **Example:** One active skill requires JSON-only output; another active skill requires a Markdown table, with no rule for combining or prioritizing them.
+- **Near-miss:** The user requests JSON-only output while a skill defaults to Markdown. The higher-tier, task-specific instruction resolves the difference.
+
+### OVERRIDE-OK
+
+The directives differ, but the stated tier order, scope, or explicit exception cleanly determines which one applies.
+
+- **Example:** A skill says “ask before editing by default”; the current user explicitly says “edit the file now.” The user instruction wins for this task.
+- **Near-miss:** A project guide says “push after every change” while a pinned global rule says “never push without confirmation.” This is a contradiction to fix, not a harmless override.
+
+Do not report stylistic variation, added strictness, or compatible sequencing as conflict unless compliance with one directive prevents compliance with the other.
+
+## 4. Resolve or surface
+
+For each finding:
+
+- **CONTRADICTION:** Identify the governing tier if precedence is explicit, but still surface the contradictory wording and recommend reconciling the lower layer.
+- **AMBIGUOUS-PRECEDENCE:** Do not guess. Present both directives, ask which should govern, and recommend encoding that decision in the appropriate layer.
+- **OVERRIDE-OK:** State the winning directive briefly. No corrective action is required.
+
+If two directives conflict within the same tier, precedence cannot resolve the tie; flag a self-conflict for the user.
+
+Prefer fixes that make scope or precedence explicit, such as: “Defer to global policy for commit behavior” or “This format applies unless the current user specifies another.”
+
+## 5. Output
+
+Use this table:
+
+| Dimension | Layer A (directive) | Layer B (directive) | Type | Resolution / fix |
+|---|---|---|---|---|
+
+Include genuine findings and any materially relevant `OVERRIDE-OK` cases. If none exist, say so plainly.
+
+End with the explicit active tier list, including each source and any pinned rules.
+
+## Failure handling
+
+| Issue | Required handling |
 |---|---|
-| A layer file isn't readable / not found | Skip it, note it as "layer absent" — don't infer its rules. |
-| Two global hard rules conflict (e.g. two soul.md lines) | Flag as a soul.md self-conflict for the user to resolve; precedence can't break a same-tier tie. |
-| Conflict is real and precedence is genuinely unclear | Do NOT auto-resolve — present both directives + ask the user which wins, then suggest writing it into the lower layer. |
-| Too many layers to audit fully | Scope to the dimensions that matter for the current task; say what you skipped (no silent truncation). |
+| Layer source is unreadable or missing | Mark it absent and continue; do not infer its rules. |
+| Same-tier directives conflict | Flag a self-conflict for user resolution. |
+| Precedence is genuinely unclear | Do not auto-resolve; request a decision and propose durable wording. |
+| Full audit is too large | Audit the dimensions relevant to the current task and list what was skipped. |
+| Directives appear different but scopes do not overlap | Record no conflict. |
