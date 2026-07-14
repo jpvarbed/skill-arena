@@ -266,8 +266,9 @@ def build_parser():
         help="Score each case k times and take the MAJORITY verdict (denoises LLM nondeterminism). Default 1.",
     )
     forge_parser.add_argument(
-        "--generator", default="codex", choices=["codex", "opus", "openai", "google"],
-        help="Model that GENERATES variants (the leverage step). Default codex = GPT-5.5 on subscription.",
+        "--generator", default="codex", choices=["codex", "opus", "openai", "google", "local"],
+        help="Model that GENERATES variants (the leverage step). Default codex = GPT-5.5 on subscription. "
+             "'local' = free on-device generation via the LiteLLM/Ollama backend (JAS-156 overnight forge swarm).",
     )
     forge_parser.add_argument(
         "--workers", type=int, default=1,
