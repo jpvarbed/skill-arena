@@ -19,12 +19,11 @@ def call_codex(prompt, model):
     with tempfile.NamedTemporaryFile("r", suffix=".txt", delete=False) as tf:
         out_path = tf.name
     try:
-        proc = subprocess.run(
-            ["codex", "exec", "--skip-git-repo-check", "-s", "read-only",
+        proc = subprocess.run(["codex", "exec", "--skip-git-repo-check", "-s", "read-only",
              "-C", tempfile.gettempdir(), "-m", model or "gpt-5.5",
              "--output-last-message", out_path, prompt],
             capture_output=True, text=True, timeout=300, stdin=subprocess.DEVNULL,
-        )
+)
         banner = proc.stdout + "\n" + proc.stderr
         # a quota-limited codex answers with an error banner; without this guard that
         # scores as [] and a full-suite wipeout masquerades as case failures
@@ -125,7 +124,7 @@ BACKENDS = {"codex": call_codex, "claude-cli": call_claude_cli, "anthropic": cal
             # invalid id — only the family members (sol/luna/terra) exist.
             "codex-56sol": call_codex, "codex-56luna": call_codex}
 
-# Local model bake-off columns (JAS-129): each is call_local with a distinct model, supplied
+# Local model bake-off columns: each is call_local with a distinct model, supplied
 # by the skill config's "models" map. For the bake-off, point LOCAL_LLM_BASE at Ollama's
 # OpenAI endpoint (http://localhost:11434/v1) so the "model" is the raw ollama tag; tool-call
 # normalization (the :4000 proxy) isn't needed for expect_set / llm_judge scoring. Distinct

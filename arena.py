@@ -34,8 +34,7 @@ TELLS = {
 
 def build_prompt(draft, context="social"):
     lines = "\n".join(f"- {k}: {v}" for k, v in TELLS.items())
-    return (
-        "You are running the 'highsignal' writing skill in DETECT mode.\n"
+    return ("You are running the 'highsignal' writing skill in DETECT mode.\n"
         "Given the DRAFT, decide which of these AI-writing tells it contains.\n"
         "Only use ids from this exact list:\n" + lines + "\n\n"
         f"The draft is a {context} piece. 'em-dash' counts in any medium when the density "
@@ -44,7 +43,7 @@ def build_prompt(draft, context="social"):
         "Output ONLY a JSON array of the matching ids (e.g. [\"filler\",\"em-dash\"]), "
         "or [] if the draft is clean. No prose, no explanation, just the array.\n\n"
         f"DRAFT:\n{draft}\n"
-    )
+)
 
 
 @dataclass(frozen=True)
@@ -220,8 +219,7 @@ def dry_run_output(skill, case):
     if scorer_type == "compression_fidelity":
         return case.get("reference_compression") or case.get("input", "")
     if scorer_type == "brief_lint":
-        return case.get("reference_brief") or (
-            "GOAL: Produce the requested artifact and verify it.\n"
+        return case.get("reference_brief") or ("GOAL: Produce the requested artifact and verify it.\n"
             "CONTEXT: tools: local repo; refs: prompt; output: requested path; fixtures: provided cases.\n"
             "EFFORT: medium\n"
             "VERIFY: beat the 80% baseline on the fixture set.\n"
@@ -231,7 +229,7 @@ def dry_run_output(skill, case):
             "  - [ ] Verification command exits 0.\n"
             "  - [ ] Results are reproducible from one command.\n"
             "DONE = all rubric checks PASS.\n"
-        )
+)
     return "{}"
 
 
@@ -264,19 +262,16 @@ def build_parser():
     forge_parser.add_argument("--replay", action="store_true")
     forge_parser.add_argument("--target", default="openai")
     forge_parser.add_argument("--attempts", type=int, default=2)
-    forge_parser.add_argument(
-        "--trials", type=int, default=1,
+    forge_parser.add_argument("--trials", type=int, default=1,
         help="Score each case k times and take the MAJORITY verdict (denoises LLM nondeterminism). Default 1.",
-    )
-    forge_parser.add_argument(
-        "--generator", default="codex", choices=["codex", "opus", "openai", "google", "local"],
+)
+    forge_parser.add_argument("--generator", default="codex", choices=["codex", "opus", "openai", "google", "local"],
         help="Model that GENERATES variants (the leverage step). Default codex = GPT-5.5 on subscription. "
-             "'local' = free on-device generation via the LiteLLM/Ollama backend (JAS-156 overnight forge swarm).",
-    )
-    forge_parser.add_argument(
-        "--workers", type=int, default=1,
+             "'local' = free on-device generation via the LiteLLM/Ollama backend (overnight forge swarm).",
+)
+    forge_parser.add_argument("--workers", type=int, default=1,
         help="Parallel scoring calls per contestant (case x trial are independent). Default 1 (serial).",
-    )
+)
     forge_parser.add_argument("--results", default=str(OUT_DIR / "forge-results.json"))
     forge_parser.add_argument("--out-dir", default=str(OUT_DIR))
 
