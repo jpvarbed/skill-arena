@@ -31,6 +31,17 @@ def test_codex_56_aliases_wired_keyless():
     assert cfg["models"]["codex-56luna"] == "gpt-5.6-luna"
 
 
+def test_codex_returns_cli_banner_when_no_last_message_is_written(monkeypatch):
+    from types import SimpleNamespace
+
+    def fake_run(*args, **kwargs):
+        return SimpleNamespace(stdout="", stderr="codex startup failed", returncode=1)
+
+    monkeypatch.setattr(backends.subprocess, "run", fake_run)
+
+    assert "codex startup failed" in backends.call_codex("prompt", "gpt-5.6-sol")
+
+
 def test_run_cell_records_exact_model_id():
     from arena import load_cases, load_skill, run_cell
 

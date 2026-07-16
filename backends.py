@@ -16,14 +16,14 @@ def call_codex(prompt, model):
     # agent banner) so it parses like an API reply. Trade-off: codex spins up an agent per
     # call, so it's SLOWER than the metered API — right when cost matters more than latency.
     import tempfile
-    with tempfile.NamedTemporaryFile("r", suffix=".txt", delete=False) as tf:
-        out_path = tf.name
-    try:
+    with tempfile.TemporaryDirectory(prefix="skill-arena-codex-") as workdir:
+        out_path = os.path.join(workdir, "last-message.txt")
+        open(out_path, "w").close()
         proc = subprocess.run(["codex", "exec", "--skip-git-repo-check", "-s", "read-only",
-             "-C", tempfile.gettempdir(), "-m", model or "gpt-5.5",
-             "--output-last-message", out_path, prompt],
+             "-C", workdir, "-m", model or "gpt-5.5", "--output-last-message", out_path, prompt],
             capture_output=True, text=True, timeout=300, stdin=subprocess.DEVNULL,
-)
+            env=os.environ.copy(),
+        )
         banner = proc.stdout + "\n" + proc.stderr
         # a quota-limited codex answers with an error banner; without this guard that
         # scores as [] and a full-suite wipeout masquerades as case failures
@@ -32,11 +32,6 @@ def call_codex(prompt, model):
         with open(out_path) as fh:
             message = fh.read().strip()
         return message or banner
-    finally:
-        try:
-            os.unlink(out_path)
-        except OSError:
-            pass
 
 def call_claude_cli(prompt, model):
     args = ["claude", "-p", prompt] + (["--model", model] if model else [])

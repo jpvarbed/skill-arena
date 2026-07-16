@@ -1,0 +1,16 @@
+{
+  "name": "frontier-stewardship",
+  "cases_path": "cases.jsonl",
+  "prompt_variants": [
+    {
+      "name": "global-loader-only",
+      "template": "Apply the globally loaded agent instructions to this hypothetical decision. Do not use tools, modify files, dispatch work, or claim an action occurred. Return only the exact output shape requested by the case: a JSON object for JSON cases, or the five-line metadata header for the marker case. No prose or markdown fences.\n\nCASE:\n{input}\n"
+    }
+  ],
+  "scorer": {
+    "type": "deterministic"
+  },
+  "models": {
+    "codex-56sol": "gpt-5.6-sol"
+  }
+}

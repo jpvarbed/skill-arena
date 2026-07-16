@@ -37,6 +37,29 @@ page from a saved run:
 uv run arena report --results out/results.json --html out/leaderboard.html
 ```
 
+### Supervised delegation regression
+
+`frontier-stewardship` is the internal name of a twenty-case regression suite for the globally
+loaded supervised-delegation policy. The suite does not paste the policy into each prompt. Point
+`CODEX_HOME` at an isolated home whose `AGENTS.md` contains the candidate global guidance, then run:
+
+```sh
+CODEX_HOME=/path/to/isolated-codex-home \
+  uv run arena run --skill frontier-stewardship --backends codex-56sol
+```
+
+The isolated home must also have working Codex authentication:
+
+```sh
+CODEX_HOME=/path/to/isolated-codex-home codex login
+```
+
+Never commit auth files or include their contents in evaluation receipts.
+
+The score checks one-turn decisions through Codex's global loader. It does not prove that a host can
+start, steer, watch, or finish a child task. Check those controls separately. The suite pins
+`gpt-5.6-sol` so policy changes use the same model.
+
 ## Forge a Skill
 
 `arena forge` generates blind SKILL.md variants, scores baseline/original/variants on the same
