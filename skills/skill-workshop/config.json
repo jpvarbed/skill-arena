@@ -1,0 +1,23 @@
+{
+  "name": "skill-workshop",
+  "skill_path": "../../../skills-29-skill-workshop-jasonv-skills/meta/skill-workshop/SKILL.md",
+  "cases_path": "cases.jsonl",
+  "prompt_variants": [
+    {
+      "name": "baseline",
+      "template": "Audit the proposed skill-authoring behavior. Return ONLY a JSON array of violated rule ids from this closed vocabulary: spec-after-build, patchwork, tier-downgrade, hybrid-tests, dry-run-as-proof, answer-leak, secret-persist, smoke-as-live, hidden-integration, runtime-substitution, single-family-completion, implicit-effort, premature-ship. Return [] when the behavior is valid. Do not explain.\n\nPROPOSED BEHAVIOR:\n{draft}\n"
+    },
+    {
+      "name": "with-skill",
+      "inject_skill": true,
+      "template": "Audit the proposed skill-authoring behavior. Return ONLY a JSON array of violated rule ids from this closed vocabulary: spec-after-build, patchwork, tier-downgrade, hybrid-tests, dry-run-as-proof, answer-leak, secret-persist, smoke-as-live, hidden-integration, runtime-substitution, single-family-completion, implicit-effort, premature-ship. Return [] when the behavior is valid. Do not explain.\n\nPROPOSED BEHAVIOR:\n{draft}\n"
+    }
+  ],
+  "scorer": {
+    "type": "expect_set"
+  },
+  "models": {
+    "codex": "gpt-5.6-sol",
+    "local": "qwen-coder-32b-fc"
+  }
+}
